@@ -84,4 +84,10 @@ cp -r ../include/libnuraft /usr/local/include
 
 cd ..
 
+wget https://www.lua.org/ftp/lua-5.4.3.tar.gz
+tar zxf lua-5.4.3.tar.gz
+cd lua-5.4.3
+make
+make install
+
 wget https://raw.githubusercontent.com/llvm/llvm-project/e837ce2a32369b2e9e8e5d60270c072c7dd63827/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -P /usr/local/bin

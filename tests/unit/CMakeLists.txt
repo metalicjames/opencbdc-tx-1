@@ -1,5 +1,7 @@
 project(unit)
 
+include_directories(../../src/phase_two)
+
 add_executable(run_unit_tests archiver_test.cpp
                               atomizer/messages_test.cpp
                               atomizer_test.cpp
@@ -10,6 +12,12 @@ add_executable(run_unit_tests archiver_test.cpp
                               locking_shard/format_test.cpp
                               network_test.cpp
                               message_test.cpp
+                              phase_two/agent/account_test.cpp
+                              phase_two/agent/agent_test.cpp
+                              phase_two/agent/broker_test.cpp
+                              phase_two/agent/runner_test.cpp
+                              phase_two/runtime_locking_shard/impl_test.cpp
+                              phase_two/util.cpp
                               raft_test.cpp
                               rpc/tcp_test.cpp
                               sentinel_2pc/controller_test.cpp
@@ -43,6 +51,12 @@ target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      watchtower
                                      coordinator
                                      locking_shard
+                                     runtime_locking_shard
+                                     agent
+                                     ticket_machine
+                                     broker
+                                     agent
+                                     directory
                                      raft
                                      rpc
                                      transaction
@@ -53,4 +67,5 @@ target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      secp256k1
                                      ${LEVELDB_LIBRARY}
                                      ${NURAFT_LIBRARY}
+                                     ${LUA_LIBRARY}
                                      ${CMAKE_THREAD_LIBS_INIT})

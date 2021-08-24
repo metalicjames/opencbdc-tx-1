@@ -42,6 +42,13 @@ RUN wget https://github.com/eBay/NuRaft/archive/v${NURAFT_VERSION}.tar.gz && \
     cp libnuraft.a /usr/local/lib && \
     cp -r ../include/libnuraft /usr/local/include
 
+# Install Lua
+RUN wget https://www.lua.org/ftp/lua-5.4.3.tar.gz && \
+    tar zxf lua-5.4.3.tar.gz && \
+    cd lua-5.4.3 && \
+    make && \
+    make install
+
 # Set working directory
 WORKDIR /opt/tx-processor
 
