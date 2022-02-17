@@ -25,7 +25,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   echo -e "${cyan}To run clang-tidy, you must add it to your path. Ex: ln -s /usr/local/opt/llvm@11/bin/clang-tidy /usr/local/bin/clang-tidy${end}"
 else
   apt update
-  apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common
+  apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common unzip
 
   # GitHub Actions in .github/workflows/validation.yml will attempt to cache and reuse leveldb built in this block.
   # If a folder called leveldb-1.22 exists, skip the build step and go straight to install.
@@ -89,5 +89,15 @@ tar zxf lua-5.4.3.tar.gz
 cd lua-5.4.3
 make
 make install
+cd ..
 
 wget https://raw.githubusercontent.com/llvm/llvm-project/e837ce2a32369b2e9e8e5d60270c072c7dd63827/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -P /usr/local/bin
+
+wget https://github.com/ethereum/evmc/archive/eda05c6866ac06bd93d62b605cbec5839d85c221.zip
+unzip eda05c6866ac06bd93d62b605cbec5839d85c221.zip
+cd evmc-eda05c6866ac06bd93d62b605cbec5839d85c221
+mkdir build
+cd build
+cmake ..
+make
+make install

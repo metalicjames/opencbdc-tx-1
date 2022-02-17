@@ -5,7 +5,8 @@ add_library(agent impl.cpp
                   runner.cpp
                   server.cpp
                   client.cpp
-                  format.cpp)
+                  format.cpp
+                  evm_runner.cpp)
 
 add_executable(agentd agentd.cpp)
 target_link_libraries(agentd agent
