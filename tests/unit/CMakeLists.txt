@@ -16,6 +16,7 @@ add_executable(run_unit_tests archiver_test.cpp
                               phase_two/agent/agent_test.cpp
                               phase_two/agent/broker_test.cpp
                               phase_two/agent/runner_test.cpp
+                              phase_two/agent/evm_test.cpp
                               phase_two/runtime_locking_shard/impl_test.cpp
                               phase_two/util.cpp
                               raft_test.cpp
@@ -36,7 +37,7 @@ add_executable(run_unit_tests archiver_test.cpp
                               watchtower/watchtower_test.cpp)
 
 target_compile_options(run_unit_tests PRIVATE -ftest-coverage -fprofile-arcs)
-target_link_options(run_unit_tests PRIVATE --coverage)
+target_link_options(run_unit_tests PRIVATE --coverage -L/usr/local/lib)
 target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      ${GMOCK_BOTH_LIBRARIES}
                                      util
@@ -65,6 +66,7 @@ target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      serialization
                                      crypto
                                      secp256k1
+                                     evmc-loader
                                      ${LEVELDB_LIBRARY}
                                      ${NURAFT_LIBRARY}
                                      ${LUA_LIBRARY}

@@ -6,7 +6,7 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_FORMAT_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_FORMAT_H_
 
-#include "evm_runner.hpp"
+#include "evm_host.hpp"
 #include "messages.hpp"
 #include "util/serialization/serializer.hpp"
 
@@ -23,6 +23,9 @@ namespace cbdc {
 
     auto operator<<(serializer& ser, const evmc::address& addr) -> serializer&;
     auto operator>>(serializer& deser, evmc::address& addr) -> serializer&;
+
+    auto operator<<(serializer& ser, const evmc::bytes32& b) -> serializer&;
+    auto operator>>(serializer& deser, evmc::bytes32& b) -> serializer&;
 }
 
 #endif

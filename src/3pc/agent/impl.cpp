@@ -182,7 +182,7 @@ namespace cbdc::threepc::agent {
             overloaded{
                 [&](broker::value_type v) {
                     m_state = state::function_started;
-                    m_runner = std::make_unique<runner>(
+                    m_runner = std::make_unique<evm_runner>(
                         m_log,
                         std::move(v),
                         get_param(),

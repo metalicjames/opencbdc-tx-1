@@ -7,8 +7,8 @@
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_IMPL_H_
 
 #include "3pc/broker/interface.hpp"
+#include "evm_runner.hpp"
 #include "interface.hpp"
-#include "runner.hpp"
 #include "util/common/logging.hpp"
 
 namespace cbdc::threepc::agent {
@@ -95,7 +95,7 @@ namespace cbdc::threepc::agent {
         std::shared_ptr<broker::interface> m_broker;
         std::optional<ticket_machine::ticket_number_type> m_ticket_number;
         std::optional<exec_return_type> m_result;
-        std::unique_ptr<runner> m_runner;
+        std::unique_ptr<evm_runner> m_runner;
         state m_state{state::init};
         bool m_permanent_error{false};
         mutable std::recursive_mutex m_mut;
