@@ -31,11 +31,9 @@ namespace cbdc::threepc::agent {
         parameter_type m_param;
         runner::run_callback_type m_result_callback;
         runner::try_lock_callback_type m_try_lock_callback;
+        std::shared_ptr<evmc::VM> m_vm;
 
         std::thread m_evm_thread;
-        std::unique_ptr<host> m_evm_host;
-
-        std::shared_ptr<evmc_vm> m_vm;
     };
 }
 

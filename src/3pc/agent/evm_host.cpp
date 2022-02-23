@@ -8,15 +8,18 @@
 #include "crypto/sha256.h"
 #include "format.hpp"
 
+#include <cassert>
 #include <future>
 
 namespace cbdc::threepc::agent {
-    host::host(runner::try_lock_callback_type try_lock_callback,
-               evmc_tx_context tx_context)
+    evm_host::evm_host(runner::try_lock_callback_type try_lock_callback,
+                       evmc_tx_context tx_context,
+                       std::shared_ptr<evmc::VM> vm)
         : m_try_lock_callback(std::move(try_lock_callback)),
-          m_tx_context(tx_context) {}
+          m_tx_context(tx_context),
+          m_vm(std::move(vm)) {}
 
-    auto host::get_account(const evmc::address& addr) const
+    auto evm_host::get_account(const evmc::address& addr) const
         -> std::optional<evm_account> {
         auto it = m_accounts.find(addr);
         if(it != m_accounts.end()) {
@@ -59,13 +62,18 @@ namespace cbdc::threepc::agent {
         return std::nullopt;
     }
 
-    auto host::account_exists(const evmc::address& addr) const noexcept
+    auto evm_host::account_exists(const evmc::address& addr) const noexcept
         -> bool {
-        return get_account(addr).has_value();
+        auto maybe_acc = get_account(addr);
+        if(!maybe_acc.has_value()) {
+            return false;
+        }
+        auto& acc = maybe_acc.value();
+        return !acc.m_destruct;
     }
 
-    auto host::get_storage(const evmc::address& addr,
-                           const evmc::bytes32& key) const noexcept
+    auto evm_host::get_storage(const evmc::address& addr,
+                               const evmc::bytes32& key) const noexcept
         -> evmc::bytes32 {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -79,9 +87,9 @@ namespace cbdc::threepc::agent {
         return it->second;
     }
 
-    auto host::set_storage(const evmc::address& addr,
-                           const evmc::bytes32& key,
-                           const evmc::bytes32& value) noexcept
+    auto evm_host::set_storage(const evmc::address& addr,
+                               const evmc::bytes32& key,
+                               const evmc::bytes32& value) noexcept
         -> evmc_storage_status {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -91,11 +99,13 @@ namespace cbdc::threepc::agent {
         auto prev_value = acc.m_storage[key];
         acc.m_storage[key] = value;
         m_accounts[addr] = acc;
+        // TODO: there are other possible return values to this method that we
+        //       need to implement to match ETH's gas calculation.
         return (prev_value == value) ? EVMC_STORAGE_UNCHANGED
                                      : EVMC_STORAGE_MODIFIED;
     }
 
-    auto host::get_balance(const evmc::address& addr) const noexcept
+    auto evm_host::get_balance(const evmc::address& addr) const noexcept
         -> evmc::uint256be {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -105,7 +115,7 @@ namespace cbdc::threepc::agent {
         return acc.m_balance;
     }
 
-    auto host::get_code_size(const evmc::address& addr) const noexcept
+    auto evm_host::get_code_size(const evmc::address& addr) const noexcept
         -> size_t {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -115,7 +125,7 @@ namespace cbdc::threepc::agent {
         return acc.m_code.size();
     }
 
-    auto host::get_code_hash(const evmc::address& addr) const noexcept
+    auto evm_host::get_code_hash(const evmc::address& addr) const noexcept
         -> evmc::bytes32 {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -129,10 +139,10 @@ namespace cbdc::threepc::agent {
         return ret;
     }
 
-    auto host::copy_code(const evmc::address& addr,
-                         size_t code_offset,
-                         uint8_t* buffer_data,
-                         size_t buffer_size) const noexcept -> size_t {
+    auto evm_host::copy_code(const evmc::address& addr,
+                             size_t code_offset,
+                             uint8_t* buffer_data,
+                             size_t buffer_size) const noexcept -> size_t {
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return 0;
@@ -151,54 +161,105 @@ namespace cbdc::threepc::agent {
         return n;
     }
 
-    void host::selfdestruct(const evmc::address& /* addr */,
-                            const evmc::address& /* beneficiary */) noexcept {
-        // TODO
+    void evm_host::selfdestruct(const evmc::address& addr,
+                                const evmc::address& beneficiary) noexcept {
+        auto maybe_acc = get_account(addr);
+        if(!maybe_acc.has_value()) {
+            return;
+        }
+        auto& acc = maybe_acc.value();
+
+        auto maybe_ben = get_account(beneficiary);
+        if(!maybe_ben.has_value()) {
+            maybe_ben = evm_account();
+        }
+        auto& ben = maybe_ben.value();
+
+        // TODO: 256-bit integer precision
+        auto ben_bal = evmc::load64be(ben.m_balance.bytes);
+        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
+        auto new_bal = ben_bal + acc_bal;
+        ben.m_balance = evmc::uint256be(new_bal);
+        acc.m_balance = {};
+        acc.m_destruct = true;
+        m_accounts[addr] = acc;
+        m_accounts[beneficiary] = ben;
     }
 
-    auto host::call(const evmc_message& msg) noexcept -> evmc::result {
-        // TODO
-        return {EVMC_REVERT, msg.gas, msg.input_data, msg.input_size};
+    auto evm_host::call(const evmc_message& msg) noexcept -> evmc::result {
+        if(msg.kind == EVMC_CREATE2 || msg.kind == EVMC_CREATE) {
+            auto res = m_vm->execute(*this, EVMC_HOMESTEAD, msg, nullptr, 0);
+            return res;
+        }
+
+        auto code_addr
+            = msg.kind == EVMC_DELEGATECALL || msg.kind == EVMC_CALLCODE
+                ? msg.code_address
+                : msg.recipient;
+
+        auto code_size = get_code_size(code_addr);
+        auto code_buf = std::vector<uint8_t>(code_size);
+        [[maybe_unused]] auto n
+            = copy_code(code_addr, 0, code_buf.data(), code_buf.size());
+        assert(n == code_size);
+
+        auto res = m_vm->execute(*this,
+                                 EVMC_HOMESTEAD,
+                                 msg,
+                                 code_buf.data(),
+                                 code_buf.size());
+        return res;
     }
 
-    auto host::get_tx_context() const noexcept -> evmc_tx_context {
+    auto evm_host::get_tx_context() const noexcept -> evmc_tx_context {
         return m_tx_context;
     }
 
-    auto host::get_block_hash(int64_t /* number */) const noexcept
+    auto evm_host::get_block_hash(int64_t /* number */) const noexcept
         -> evmc::bytes32 {
         // TODO: there are no blocks for this host. Ensure it's okay to always
         // return 0.
         return {};
     }
 
-    void host::emit_log(const evmc::address& /* addr */,
-                        const uint8_t* /* data */,
-                        size_t /* data_size */,
-                        const evmc::bytes32* /* topics[] */,
-                        size_t /* topics_count */) noexcept {
+    void evm_host::emit_log(const evmc::address& /* addr */,
+                            const uint8_t* /* data */,
+                            size_t /* data_size */,
+                            const evmc::bytes32* /* topics[] */,
+                            size_t /* topics_count */) noexcept {
         // TODO
     }
 
-    auto host::access_account(const evmc::address& /* addr */) noexcept
+    auto evm_host::access_account(const evmc::address& addr) noexcept
         -> evmc_access_status {
-        // TODO
+        if(m_accessed_addresses.find(addr) != m_accessed_addresses.end()) {
+            return EVMC_ACCESS_WARM;
+        }
+        m_accessed_addresses.insert(addr);
         return EVMC_ACCESS_COLD;
     }
 
-    auto host::access_storage(const evmc::address& /* addr */,
-                              const evmc::bytes32& /* key */) noexcept
+    auto evm_host::access_storage(const evmc::address& addr,
+                                  const evmc::bytes32& key) noexcept
         -> evmc_access_status {
-        // TODO
+        auto elem = std::make_pair(addr, key);
+        if(m_accessed_storage_keys.find(elem)
+           != m_accessed_storage_keys.end()) {
+            return EVMC_ACCESS_WARM;
+        }
+        m_accessed_storage_keys.insert(elem);
         return EVMC_ACCESS_COLD;
     }
 
-    auto host::get_state_updates() const
+    auto evm_host::get_state_updates() const
         -> runtime_locking_shard::state_update_type {
         auto ret = runtime_locking_shard::state_update_type();
         for(auto& [addr, acc] : m_accounts) {
             auto key = make_buffer(addr);
-            auto val = make_buffer(acc);
+            auto val = cbdc::buffer();
+            if(!acc.m_destruct) {
+                val = make_buffer(acc);
+            }
             ret[key] = val;
         }
         return ret;

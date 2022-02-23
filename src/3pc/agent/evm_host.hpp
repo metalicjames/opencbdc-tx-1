@@ -11,18 +11,21 @@
 
 #include <evmc/evmc.hpp>
 #include <map>
+#include <set>
 
 namespace cbdc::threepc::agent {
     struct evm_account {
         evmc::uint256be m_balance;
         std::vector<uint8_t> m_code;
         std::map<evmc::bytes32, evmc::bytes32> m_storage;
+        bool m_destruct{false};
     };
 
-    class host : public evmc::Host {
+    class evm_host : public evmc::Host {
       public:
-        host(runner::try_lock_callback_type try_lock_callback,
-             evmc_tx_context tx_context);
+        evm_host(runner::try_lock_callback_type try_lock_callback,
+                 evmc_tx_context tx_context,
+                 std::shared_ptr<evmc::VM> vm);
 
         [[nodiscard]] auto
         account_exists(const evmc::address& addr) const noexcept -> bool final;
@@ -86,6 +89,11 @@ namespace cbdc::threepc::agent {
         runner::try_lock_callback_type m_try_lock_callback;
         mutable std::map<evmc::address, evm_account> m_accounts;
         evmc_tx_context m_tx_context;
+        std::shared_ptr<evmc::VM> m_vm;
+
+        std::set<evmc::address> m_accessed_addresses;
+        std::set<std::pair<evmc::address, evmc::bytes32>>
+            m_accessed_storage_keys;
 
         [[nodiscard]] auto get_account(const evmc::address& addr) const
             -> std::optional<evm_account>;
