@@ -70,8 +70,11 @@ namespace cbdc::threepc::agent {
                                         code.data(),
                                         code.size());
             if(result.status_code != EVMC_SUCCESS) {
-                // TODO: error handling
-                m_log->error("Error running EVM contract");
+                m_log->error("Error running EVM contract",
+                             evmc::to_string(result.status_code));
+                m_result_callback(runner::error_code::exec_error);
+            } else if(host.should_retry()) {
+                m_result_callback(runner::error_code::wounded);
             } else {
                 auto state_updates = host.get_state_updates();
                 m_result_callback(state_updates);

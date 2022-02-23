@@ -85,6 +85,8 @@ namespace cbdc::threepc::agent {
         auto get_state_updates() const
             -> runtime_locking_shard::state_update_type;
 
+        auto should_retry() const -> bool;
+
       private:
         runner::try_lock_callback_type m_try_lock_callback;
         mutable std::map<evmc::address, evm_account> m_accounts;
@@ -94,6 +96,8 @@ namespace cbdc::threepc::agent {
         std::set<evmc::address> m_accessed_addresses;
         std::set<std::pair<evmc::address, evmc::bytes32>>
             m_accessed_storage_keys;
+
+        mutable bool m_retry{false};
 
         [[nodiscard]] auto get_account(const evmc::address& addr) const
             -> std::optional<evm_account>;

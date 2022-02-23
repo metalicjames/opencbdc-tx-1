@@ -40,24 +40,24 @@ namespace cbdc::threepc::agent {
             });
 
         if(!ret) {
-            // TODO: error handling
+            m_retry = true;
             return std::nullopt;
         }
 
         auto res = res_fut.get();
         if(std::holds_alternative<broker::value_type>(res)) {
             auto v = std::get<broker::value_type>(res);
-            auto maybe_acc = from_buffer<evm_account>(v);
-            if(!maybe_acc.has_value()) {
-                // TODO: error handling
+            if(v.size() == 0) {
                 return std::nullopt;
             }
+            auto maybe_acc = from_buffer<evm_account>(v);
+            assert(maybe_acc.has_value());
             auto& acc = maybe_acc.value();
             m_accounts[addr] = acc;
             return acc;
         }
 
-        // TODO: error handling
+        m_retry = true;
 
         return std::nullopt;
     }
@@ -263,5 +263,9 @@ namespace cbdc::threepc::agent {
             ret[key] = val;
         }
         return ret;
+    }
+
+    auto evm_host::should_retry() const -> bool {
+        return m_retry;
     }
 }
