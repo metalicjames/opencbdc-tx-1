@@ -9,13 +9,16 @@
 #include "format.hpp"
 
 #include <cassert>
+#include <evmc/hex.hpp>
 #include <future>
 
 namespace cbdc::threepc::agent::runner {
-    evm_host::evm_host(interface::try_lock_callback_type try_lock_callback,
+    evm_host::evm_host(std::shared_ptr<logging::log> log,
+                       interface::try_lock_callback_type try_lock_callback,
                        evmc_tx_context tx_context,
                        std::shared_ptr<evmc::VM> vm)
-        : m_try_lock_callback(std::move(try_lock_callback)),
+        : m_log(std::move(log)),
+          m_try_lock_callback(std::move(try_lock_callback)),
           m_tx_context(tx_context),
           m_vm(std::move(vm)) {}
 
@@ -222,12 +225,20 @@ namespace cbdc::threepc::agent::runner {
         return {};
     }
 
-    void evm_host::emit_log(const evmc::address& /* addr */,
-                            const uint8_t* /* data */,
-                            size_t /* data_size */,
-                            const evmc::bytes32* /* topics[] */,
-                            size_t /* topics_count */) noexcept {
-        // TODO
+    void evm_host::emit_log(const evmc::address& addr,
+                            const uint8_t* data,
+                            size_t data_size,
+                            const evmc::bytes32 topics[],
+                            size_t topics_count) noexcept {
+        std::stringstream ss;
+        for(size_t i = 0; i < topics_count; i++) {
+            ss << evmc::hex(topics[i].bytes);
+        }
+        auto data_bytes = evmc::bytes(data, data_size);
+        m_log->debug("EVM:",
+                     evmc::hex(addr.bytes),
+                     evmc::hex(data_bytes),
+                     ss.str());
     }
 
     auto evm_host::access_account(const evmc::address& addr) noexcept

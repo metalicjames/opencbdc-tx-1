@@ -69,6 +69,7 @@ target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      crypto
                                      secp256k1
                                      evmc-loader
+                                     hex
                                      ${LEVELDB_LIBRARY}
                                      ${NURAFT_LIBRARY}
                                      ${LUA_LIBRARY}

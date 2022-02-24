@@ -17,7 +17,8 @@
 namespace cbdc::threepc::agent::runner {
     class evm_host : public evmc::Host {
       public:
-        evm_host(interface::try_lock_callback_type try_lock_callback,
+        evm_host(std::shared_ptr<logging::log> log,
+                 interface::try_lock_callback_type try_lock_callback,
                  evmc_tx_context tx_context,
                  std::shared_ptr<evmc::VM> vm);
 
@@ -82,6 +83,7 @@ namespace cbdc::threepc::agent::runner {
         auto should_retry() const -> bool;
 
       private:
+        std::shared_ptr<logging::log> m_log;
         runner::interface::try_lock_callback_type m_try_lock_callback;
         mutable std::map<evmc::address, evm_account> m_accounts;
         evmc_tx_context m_tx_context;

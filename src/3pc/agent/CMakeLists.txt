@@ -23,6 +23,7 @@ target_link_libraries(agentd agent
                              crypto
                              secp256k1
                              evmc-loader
+                             hex
                              ${LUA_LIBRARY}
                              ${CMAKE_THREAD_LIBS_INIT})
 

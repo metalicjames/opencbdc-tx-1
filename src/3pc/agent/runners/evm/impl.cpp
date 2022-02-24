@@ -62,7 +62,7 @@ namespace cbdc::threepc::agent::runner {
             tx_ctx.block_timestamp = 66;
             tx_ctx.block_gas_limit = gas * 2;
 
-            auto host = evm_host(m_try_lock_callback, tx_ctx, m_vm);
+            auto host = evm_host(m_log, m_try_lock_callback, tx_ctx, m_vm);
 
             auto result = m_vm->execute(host,
                                         EVMC_HOMESTEAD,
