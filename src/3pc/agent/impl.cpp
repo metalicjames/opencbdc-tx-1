@@ -182,11 +182,12 @@ namespace cbdc::threepc::agent {
             overloaded{
                 [&](broker::value_type v) {
                     m_state = state::function_started;
-                    m_runner = std::make_unique<evm_runner>(
+                    m_runner = std::make_unique<runner::evm_runner>(
                         m_log,
                         std::move(v),
                         get_param(),
-                        [this](const runner::run_return_type& run_res) {
+                        [this](const runner::interface::run_return_type&
+                                   run_res) {
                             handle_run(run_res);
                         },
                         [this](
@@ -252,28 +253,29 @@ namespace cbdc::threepc::agent {
         }
     }
 
-    void impl::handle_run(const runner::run_return_type& res) {
+    void impl::handle_run(const runner::interface::run_return_type& res) {
         std::unique_lock l(m_mut);
         if(m_state != state::function_started) {
             m_log->warn("handle_run while not in function_started state");
             return;
         }
         std::visit(
-            overloaded{[&](runtime_locking_shard::state_update_type states) {
-                           m_result = std::move(states);
-                           do_commit();
-                       },
-                       [&](runner::error_code e) {
-                           if(e == runner::error_code::wounded
-                              || e == runner::error_code::internal_error) {
-                               m_state = state::function_failed;
-                           } else {
-                               m_state = state::function_error;
-                               m_log->error("Function execution failed");
-                           }
-                           m_result = error_code::function_execution;
-                           do_result();
-                       }},
+            overloaded{
+                [&](runtime_locking_shard::state_update_type states) {
+                    m_result = std::move(states);
+                    do_commit();
+                },
+                [&](runner::interface::error_code e) {
+                    if(e == runner::interface::error_code::wounded
+                       || e == runner::interface::error_code::internal_error) {
+                        m_state = state::function_failed;
+                    } else {
+                        m_state = state::function_error;
+                        m_log->error("Function execution failed");
+                    }
+                    m_result = error_code::function_execution;
+                    do_result();
+                }},
             res);
         m_log->trace(this,
                      "Agent handle_run complete for",

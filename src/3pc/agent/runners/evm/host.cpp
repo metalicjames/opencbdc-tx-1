@@ -3,7 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "evm_host.hpp"
+#include "host.hpp"
 
 #include "crypto/sha256.h"
 #include "format.hpp"
@@ -11,8 +11,8 @@
 #include <cassert>
 #include <future>
 
-namespace cbdc::threepc::agent {
-    evm_host::evm_host(runner::try_lock_callback_type try_lock_callback,
+namespace cbdc::threepc::agent::runner {
+    evm_host::evm_host(interface::try_lock_callback_type try_lock_callback,
                        evmc_tx_context tx_context,
                        std::shared_ptr<evmc::VM> vm)
         : m_try_lock_callback(std::move(try_lock_callback)),

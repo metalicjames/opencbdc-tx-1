@@ -6,24 +6,18 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_EVM_HOST_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_EVM_HOST_H_
 
-#include "runner.hpp"
+#include "3pc/agent/runners/evm/messages.hpp"
+#include "3pc/agent/runners/interface.hpp"
 #include "util/serialization/util.hpp"
 
 #include <evmc/evmc.hpp>
 #include <map>
 #include <set>
 
-namespace cbdc::threepc::agent {
-    struct evm_account {
-        evmc::uint256be m_balance;
-        std::vector<uint8_t> m_code;
-        std::map<evmc::bytes32, evmc::bytes32> m_storage;
-        bool m_destruct{false};
-    };
-
+namespace cbdc::threepc::agent::runner {
     class evm_host : public evmc::Host {
       public:
-        evm_host(runner::try_lock_callback_type try_lock_callback,
+        evm_host(interface::try_lock_callback_type try_lock_callback,
                  evmc_tx_context tx_context,
                  std::shared_ptr<evmc::VM> vm);
 
@@ -88,7 +82,7 @@ namespace cbdc::threepc::agent {
         auto should_retry() const -> bool;
 
       private:
-        runner::try_lock_callback_type m_try_lock_callback;
+        runner::interface::try_lock_callback_type m_try_lock_callback;
         mutable std::map<evmc::address, evm_account> m_accounts;
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;

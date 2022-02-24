@@ -3,23 +3,23 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "evm_runner.hpp"
+#include "impl.hpp"
 
-#include "evm_host.hpp"
+#include "host.hpp"
 
 #include <evmc/loader.h>
 
-namespace cbdc::threepc::agent {
+namespace cbdc::threepc::agent::runner {
     evm_runner::evm_runner(std::shared_ptr<logging::log> logger,
                            runtime_locking_shard::value_type function,
                            parameter_type param,
-                           runner::run_callback_type result_callback,
-                           runner::try_lock_callback_type try_lock_callback)
-        : m_log(std::move(logger)),
-          m_function(std::move(function)),
-          m_param(std::move(param)),
-          m_result_callback(std::move(result_callback)),
-          m_try_lock_callback(std::move(try_lock_callback)) {}
+                           run_callback_type result_callback,
+                           try_lock_callback_type try_lock_callback)
+        : interface(std::move(logger),
+                    std::move(function),
+                    std::move(param),
+                    std::move(result_callback),
+                    std::move(try_lock_callback)) {}
 
     evm_runner::~evm_runner() {
         if(m_evm_thread.joinable()) {
@@ -29,10 +29,10 @@ namespace cbdc::threepc::agent {
 
     auto evm_runner::run() -> bool {
         const auto* config_string = "libexample-vm.dylib";
-        auto error_code = EVMC_LOADER_UNSPECIFIED_ERROR;
+        auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
 
         m_vm = std::make_shared<evmc::VM>(
-            evmc_load_and_configure(config_string, &error_code));
+            evmc_load_and_configure(config_string, &load_error));
         if(!(*m_vm)) {
             m_log->error("Unable to load EVM implementation");
             return false;
@@ -72,9 +72,9 @@ namespace cbdc::threepc::agent {
             if(result.status_code != EVMC_SUCCESS) {
                 m_log->error("Error running EVM contract",
                              evmc::to_string(result.status_code));
-                m_result_callback(runner::error_code::exec_error);
+                m_result_callback(error_code::exec_error);
             } else if(host.should_retry()) {
-                m_result_callback(runner::error_code::wounded);
+                m_result_callback(error_code::wounded);
             } else {
                 auto state_updates = host.get_state_updates();
                 m_result_callback(state_updates);

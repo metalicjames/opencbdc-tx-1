@@ -3,7 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "3pc/agent/runner.hpp"
+#include "3pc/agent/runners/lua/impl.hpp"
 
 #include <gtest/gtest.h>
 
@@ -28,15 +28,17 @@ TEST(agent_runner_test, rollback_test) {
     auto exp_key_buf = cbdc::buffer();
     exp_key_buf.append(exp_key, 5);
 
-    auto result_cb = [&](cbdc::threepc::agent::runner::run_return_type ret) {
-        ASSERT_TRUE(
-            std::holds_alternative<
-                cbdc::threepc::runtime_locking_shard::state_update_type>(ret));
-        auto& val = std::get<
-            cbdc::threepc::runtime_locking_shard::state_update_type>(ret);
-        ASSERT_EQ(val.size(), 1);
-        ASSERT_EQ(val[exp_key_buf], exp_val_buf);
-    };
+    auto result_cb =
+        [&](cbdc::threepc::agent::runner::interface::run_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::state_update_type>(
+                    ret));
+            auto& val = std::get<
+                cbdc::threepc::runtime_locking_shard::state_update_type>(ret);
+            ASSERT_EQ(val.size(), 1);
+            ASSERT_EQ(val[exp_key_buf], exp_val_buf);
+        };
 
     auto try_lock_cb
         = [&](const cbdc::threepc::broker::key_type& key,
@@ -47,10 +49,11 @@ TEST(agent_runner_test, rollback_test) {
         return true;
     };
 
-    auto runner = cbdc::threepc::agent::runner(log,
-                                               std::move(func),
-                                               std::move(param),
-                                               std::move(result_cb),
-                                               std::move(try_lock_cb));
+    auto runner
+        = cbdc::threepc::agent::runner::lua_runner(log,
+                                                   std::move(func),
+                                                   std::move(param),
+                                                   std::move(result_cb),
+                                                   std::move(try_lock_cb));
     ASSERT_TRUE(runner.run());
 }

@@ -6,31 +6,36 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_EVM_RUNNER_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_EVM_RUNNER_H_
 
-#include "evm_host.hpp"
-#include "runner.hpp"
+#include "3pc/agent/runners/interface.hpp"
+#include "host.hpp"
 
 #include <evmc/evmc.h>
 #include <thread>
 
-namespace cbdc::threepc::agent {
-    class evm_runner {
+namespace cbdc::threepc::agent::runner {
+    class evm_runner : public interface {
       public:
         evm_runner(std::shared_ptr<logging::log> logger,
                    runtime_locking_shard::value_type function,
                    parameter_type param,
-                   runner::run_callback_type result_callback,
-                   runner::try_lock_callback_type try_lock_callback);
+                   run_callback_type result_callback,
+                   try_lock_callback_type try_lock_callback);
 
-        ~evm_runner();
+        ~evm_runner() override;
 
-        auto run() -> bool;
+        evm_runner(const evm_runner&) = delete;
+        auto operator=(const evm_runner&) -> evm_runner& = delete;
+        evm_runner(evm_runner&&) = delete;
+        auto operator=(evm_runner&&) -> evm_runner& = delete;
+
+        auto run() -> bool override;
 
       private:
         std::shared_ptr<logging::log> m_log;
         runtime_locking_shard::value_type m_function;
         parameter_type m_param;
-        runner::run_callback_type m_result_callback;
-        runner::try_lock_callback_type m_try_lock_callback;
+        run_callback_type m_result_callback;
+        try_lock_callback_type m_try_lock_callback;
         std::shared_ptr<evmc::VM> m_vm;
 
         std::thread m_evm_thread;

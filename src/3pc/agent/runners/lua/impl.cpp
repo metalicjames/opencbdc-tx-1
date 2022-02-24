@@ -3,7 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "runner.hpp"
+#include "impl.hpp"
 
 #include "crypto/sha256.h"
 #include "util/common/keys.hpp"
@@ -13,25 +13,25 @@
 #include <secp256k1.h>
 #include <secp256k1_schnorrsig.h>
 
-namespace cbdc::threepc::agent {
+namespace cbdc::threepc::agent::runner {
     static const auto secp_context
         = std::unique_ptr<secp256k1_context,
                           decltype(&secp256k1_context_destroy)>(
             secp256k1_context_create(SECP256K1_CONTEXT_VERIFY),
             &secp256k1_context_destroy);
 
-    runner::runner(std::shared_ptr<logging::log> logger,
-                   runtime_locking_shard::value_type function,
-                   parameter_type param,
-                   run_callback_type result_callback,
-                   try_lock_callback_type try_lock_callback)
-        : m_log(std::move(logger)),
-          m_function(std::move(function)),
-          m_param(std::move(param)),
-          m_result_callback(std::move(result_callback)),
-          m_try_lock_callback(std::move(try_lock_callback)) {}
+    lua_runner::lua_runner(std::shared_ptr<logging::log> logger,
+                           runtime_locking_shard::value_type function,
+                           parameter_type param,
+                           run_callback_type result_callback,
+                           try_lock_callback_type try_lock_callback)
+        : interface(std::move(logger),
+                    std::move(function),
+                    std::move(param),
+                    std::move(result_callback),
+                    std::move(try_lock_callback)) {}
 
-    auto runner::run() -> bool {
+    auto lua_runner::run() -> bool {
         // TODO: use custom allocator to limit memory allocation
         m_state
             = std::shared_ptr<lua_State>(luaL_newstate(), [](lua_State* s) {
@@ -48,7 +48,7 @@ namespace cbdc::threepc::agent {
         //       methods
         luaL_openlibs(m_state.get());
 
-        lua_register(m_state.get(), "check_sig", &runner::check_sig);
+        lua_register(m_state.get(), "check_sig", &lua_runner::check_sig);
 
         static constexpr auto function_name = "contract";
 
@@ -75,7 +75,7 @@ namespace cbdc::threepc::agent {
         return true;
     }
 
-    void runner::contract_epilogue(int n_results) {
+    void lua_runner::contract_epilogue(int n_results) {
         if(n_results != 1) {
             m_log->error("Contract returned more than one result");
             m_result_callback(error_code::result_count);
@@ -113,10 +113,10 @@ namespace cbdc::threepc::agent {
 
         m_log->trace(this, "running calling result callback");
         m_result_callback(std::move(results));
-        m_log->trace(this, "runner finished contract epilogue");
+        m_log->trace(this, "lua_runner finished contract epilogue");
     }
 
-    auto runner::get_stack_string(int index) -> std::optional<buffer> {
+    auto lua_runner::get_stack_string(int index) -> std::optional<buffer> {
         if(lua_isstring(m_state.get(), index) != 1) {
             return std::nullopt;
         }
@@ -128,7 +128,7 @@ namespace cbdc::threepc::agent {
         return buf;
     }
 
-    void runner::schedule_contract() {
+    void lua_runner::schedule_contract() {
         int n_results{};
         auto resume_ret = lua_resume(m_state.get(), nullptr, 1, &n_results);
         if(resume_ret == LUA_YIELD) {
@@ -162,7 +162,7 @@ namespace cbdc::threepc::agent {
         }
     }
 
-    void runner::handle_try_lock(
+    void lua_runner::handle_try_lock(
         const broker::interface::try_lock_return_type& res) {
         auto maybe_error = std::visit(
             overloaded{
@@ -195,7 +195,7 @@ namespace cbdc::threepc::agent {
         schedule_contract();
     }
 
-    auto runner::check_sig(lua_State* L) -> int {
+    auto lua_runner::check_sig(lua_State* L) -> int {
         int n = lua_gettop(L);
         if(n != 3) {
             lua_pushliteral(L, "not enough arguments");

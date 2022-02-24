@@ -53,7 +53,7 @@ TEST_F(evm_test, initial_test) {
         m_broker,
         m_contract_key,
         params,
-        [&](cbdc::threepc::agent::interface::exec_return_type res) {
+        [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
             ASSERT_TRUE(
                 std::holds_alternative<cbdc::threepc::agent::return_type>(
                     res));

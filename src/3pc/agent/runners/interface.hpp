@@ -1,25 +1,20 @@
-// Copyright (c) 2021 MIT Digital Currency Initiative,
+// Copyright (c) 2022 MIT Digital Currency Initiative,
 //                    Federal Reserve Bank of Boston
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNER_H_
-#define CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNER_H_
+#ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNERS_INTERFACE_H_
+#define CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNERS_INTERFACE_H_
 
+#include "3pc/agent/interface.hpp"
 #include "3pc/broker/interface.hpp"
-#include "interface.hpp"
+#include "3pc/runtime_locking_shard/interface.hpp"
 #include "util/common/logging.hpp"
 
-#include <lua.hpp>
 #include <memory>
 
-namespace cbdc::threepc::agent {
-    /// Lua function executor. Provides an environment for contracts to execute
-    /// in. Manages retrieval of function bytecode, locking keys during
-    /// function execution, signature checking and commiting execution results.
-    /// Class cannot be re-used for different functions/transactions, manages
-    /// the lifecycle of a single transaction.
-    class runner {
+namespace cbdc::threepc::agent::runner {
+    class interface {
       public:
         /// Error codes return during function execution.
         enum class error_code {
@@ -31,11 +26,11 @@ namespace cbdc::threepc::agent {
             result_type,
             /// Function more than one result.
             result_count,
-            /// Lua error during function execution.
+            /// Runner error during function execution.
             exec_error,
             /// Error loading function bytecode.
             function_load,
-            /// Internal Lua error.
+            /// Internal Runner error.
             internal_error,
             /// Function yielded more than one key to lock.
             yield_count,
@@ -70,35 +65,32 @@ namespace cbdc::threepc::agent {
         ///                        result.
         /// \param try_lock_callback function to call for the function to
         ///                          request key locks.
-        runner(std::shared_ptr<logging::log> logger,
-               runtime_locking_shard::value_type function,
-               parameter_type param,
-               run_callback_type result_callback,
-               try_lock_callback_type try_lock_callback);
+        interface(std::shared_ptr<logging::log> logger,
+                  runtime_locking_shard::value_type function,
+                  parameter_type param,
+                  run_callback_type result_callback,
+                  try_lock_callback_type try_lock_callback);
+
+        virtual ~interface() = default;
+
+        interface(const interface&) = delete;
+        auto operator=(const interface&) -> interface& = delete;
+        interface(interface&&) = delete;
+        auto operator=(interface&&) -> interface& = delete;
 
         /// Begins function execution. Retrieves the function bytecode using a
         /// read lock and executes it with the given parameter.
         /// \return true.
-        auto run() -> bool;
+        virtual auto run() -> bool = 0;
+
+        friend class lua_runner;
 
       private:
         std::shared_ptr<logging::log> m_log;
-        std::shared_ptr<lua_State> m_state;
         runtime_locking_shard::value_type m_function;
         parameter_type m_param;
         run_callback_type m_result_callback;
         try_lock_callback_type m_try_lock_callback;
-
-        void contract_epilogue(int n_results);
-
-        auto get_stack_string(int index) -> std::optional<buffer>;
-
-        void schedule_contract();
-
-        void
-        handle_try_lock(const broker::interface::try_lock_return_type& res);
-
-        static auto check_sig(lua_State* L) -> int;
     };
 }
 

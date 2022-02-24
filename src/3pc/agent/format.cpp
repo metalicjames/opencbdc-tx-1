@@ -17,35 +17,4 @@ namespace cbdc {
         -> serializer& {
         return deser >> req.m_function >> req.m_param;
     }
-
-    auto operator<<(serializer& ser, const threepc::agent::evm_account& acc)
-        -> serializer& {
-        return ser << acc.m_balance << acc.m_code << acc.m_storage;
-    }
-
-    auto operator>>(serializer& deser, threepc::agent::evm_account& acc)
-        -> serializer& {
-        return deser >> acc.m_balance >> acc.m_code >> acc.m_storage;
-    }
-
-    auto operator<<(serializer& ser, const evmc::address& addr)
-        -> serializer& {
-        ser.write(addr.bytes, sizeof(addr.bytes));
-        return ser;
-    }
-
-    auto operator>>(serializer& deser, evmc::address& addr) -> serializer& {
-        deser.read(addr.bytes, sizeof(addr.bytes));
-        return deser;
-    }
-
-    auto operator<<(serializer& ser, const evmc::bytes32& b) -> serializer& {
-        ser.write(b.bytes, sizeof(b.bytes));
-        return ser;
-    }
-
-    auto operator>>(serializer& deser, evmc::bytes32& b) -> serializer& {
-        deser.read(b.bytes, sizeof(b.bytes));
-        return deser;
-    }
 }

@@ -53,10 +53,12 @@ target_link_libraries(run_unit_tests ${GTEST_BOTH_LIBRARIES}
                                      coordinator
                                      locking_shard
                                      runtime_locking_shard
-                                     agent
                                      ticket_machine
                                      broker
                                      agent
+                                     evm_runner
+                                     lua_runner
+                                     runners
                                      directory
                                      raft
                                      rpc
