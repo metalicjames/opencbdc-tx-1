@@ -5,6 +5,7 @@
 
 #include "server.hpp"
 
+#include "3pc/agent/runners/evm/impl.hpp"
 #include "impl.hpp"
 
 #include <cassert>
@@ -63,6 +64,7 @@ namespace cbdc::threepc::agent::rpc {
         auto a = [&]() {
             auto agent = std::make_shared<impl>(
                 m_log,
+                &runner::factory<runner::evm_runner>::create,
                 m_broker,
                 req.m_function,
                 req.m_param,

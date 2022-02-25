@@ -5,6 +5,7 @@
 
 #include "../util.hpp"
 #include "3pc/agent/impl.hpp"
+#include "3pc/agent/runners/evm/impl.hpp"
 #include "3pc/broker/impl.hpp"
 #include "3pc/directory/impl.hpp"
 #include "3pc/runtime_locking_shard/impl.hpp"
@@ -50,6 +51,8 @@ TEST_F(evm_test, initial_test) {
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
         m_contract_key,
         params,

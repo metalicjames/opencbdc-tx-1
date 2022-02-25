@@ -9,6 +9,7 @@
 
 namespace cbdc::threepc::agent {
     impl::impl(std::shared_ptr<logging::log> logger,
+               runner::interface::factory_type runner_factory,
                std::shared_ptr<broker::interface> broker,
                runtime_locking_shard::key_type function,
                parameter_type param,
@@ -17,6 +18,7 @@ namespace cbdc::threepc::agent {
                     std::move(param),
                     std::move(result_callback)),
           m_log(std::move(logger)),
+          m_runner_factory(std::move(runner_factory)),
           m_broker(std::move(broker)) {}
 
     auto impl::exec() -> bool {
@@ -182,7 +184,7 @@ namespace cbdc::threepc::agent {
             overloaded{
                 [&](broker::value_type v) {
                     m_state = state::function_started;
-                    m_runner = std::make_unique<runner::evm_runner>(
+                    m_runner = m_runner_factory(
                         m_log,
                         std::move(v),
                         get_param(),

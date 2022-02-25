@@ -5,6 +5,7 @@
 
 #include "../util.hpp"
 #include "3pc/agent/impl.hpp"
+#include "3pc/agent/runners/lua/impl.hpp"
 #include "3pc/broker/impl.hpp"
 #include "3pc/directory/impl.hpp"
 #include "3pc/runtime_locking_shard/impl.hpp"
@@ -78,6 +79,8 @@ TEST_F(agent_test, deploy_test) {
 
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
         m_deploy_contract_key,
         params,
@@ -98,6 +101,8 @@ TEST_F(agent_test, rollback_test) {
     auto callback_called = false;
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
         m_deploy_contract_key,
         params,
@@ -139,6 +144,8 @@ TEST_F(agent_test, wound_deploy_test) {
     auto agent1_complete = false;
     auto agent0 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
         m_deploy_contract_key,
         params,
@@ -153,6 +160,8 @@ TEST_F(agent_test, wound_deploy_test) {
         });
     auto agent1 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::lua_runner>::create,
         broker1,
         m_deploy_contract_key,
         params,

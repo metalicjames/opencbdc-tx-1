@@ -20,7 +20,6 @@ namespace cbdc::threepc::agent {
       public:
         virtual ~interface() = default;
 
-        interface() = default;
         interface(const interface&) = delete;
         auto operator=(const interface&) -> interface& = delete;
         interface(interface&&) = delete;

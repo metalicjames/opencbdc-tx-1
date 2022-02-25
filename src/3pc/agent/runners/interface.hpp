@@ -57,6 +57,13 @@ namespace cbdc::threepc::agent::runner {
             = std::function<bool(broker::key_type,
                                  broker::interface::try_lock_callback_type)>;
 
+        using factory_type = std::function<std::unique_ptr<interface>(
+            std::shared_ptr<logging::log> logger,
+            runtime_locking_shard::value_type function,
+            parameter_type param,
+            runner::interface::run_callback_type result_callback,
+            runner::interface::try_lock_callback_type try_lock_callback)>;
+
         /// Constructor.
         /// \param logger log instance.
         /// \param function key of function bytecode to execute.
@@ -92,6 +99,24 @@ namespace cbdc::threepc::agent::runner {
         parameter_type m_param;
         run_callback_type m_result_callback;
         try_lock_callback_type m_try_lock_callback;
+    };
+
+    template<class T>
+    class factory {
+      public:
+        static auto
+        create(std::shared_ptr<logging::log> logger,
+               runtime_locking_shard::value_type function,
+               parameter_type param,
+               runner::interface::run_callback_type result_callback,
+               runner::interface::try_lock_callback_type try_lock_callback)
+            -> std::unique_ptr<runner::interface> {
+            return std::make_unique<T>(std::move(logger),
+                                       std::move(function),
+                                       std::move(param),
+                                       std::move(result_callback),
+                                       std::move(try_lock_callback));
+        }
     };
 }
 

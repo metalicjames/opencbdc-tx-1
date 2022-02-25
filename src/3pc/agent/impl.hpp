@@ -6,7 +6,7 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_IMPL_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_IMPL_H_
 
-#include "3pc/agent/runners/evm/impl.hpp"
+#include "3pc/agent/runners/interface.hpp"
 #include "3pc/broker/interface.hpp"
 #include "interface.hpp"
 #include "util/common/logging.hpp"
@@ -57,12 +57,15 @@ namespace cbdc::threepc::agent {
 
         /// Constructor.
         /// \param logger log instance.
+        /// \param runner_factory function which constructs and returns a
+        ///                       pointer to a runner instance.
         /// \param broker broker instance.
         /// \param function key containing function bytecode.
         /// \param param function parameter.
         /// \param result_callback function to call with function execution
         ///                        result.
         impl(std::shared_ptr<logging::log> logger,
+             runner::interface::factory_type runner_factory,
              std::shared_ptr<broker::interface> broker,
              runtime_locking_shard::key_type function,
              parameter_type param,
@@ -92,10 +95,11 @@ namespace cbdc::threepc::agent {
 
       private:
         std::shared_ptr<logging::log> m_log;
+        runner::interface::factory_type m_runner_factory;
         std::shared_ptr<broker::interface> m_broker;
         std::optional<ticket_machine::ticket_number_type> m_ticket_number;
         std::optional<exec_return_type> m_result;
-        std::unique_ptr<runner::evm_runner> m_runner;
+        std::unique_ptr<runner::interface> m_runner;
         state m_state{state::init};
         bool m_permanent_error{false};
         mutable std::recursive_mutex m_mut;
