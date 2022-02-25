@@ -63,3 +63,73 @@ TEST_F(evm_test, initial_test) {
     auto res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
 }
+
+TEST_F(evm_test, host_storage) {
+    const auto addr1 = evmc::address{};
+    const auto addr2 = evmc::address{1};
+    const auto addr3 = evmc::address{2};
+    const auto val1 = evmc::bytes32{};
+    const auto val2 = evmc::bytes32{2};
+    const auto val3 = evmc::bytes32{3};
+
+    auto tx_ctx = evmc_tx_context();
+
+    auto m = std::unordered_map<cbdc::buffer,
+                                cbdc::buffer,
+                                cbdc::hashing::const_sip_hash<cbdc::buffer>>();
+
+    auto host = cbdc::threepc::agent::runner::evm_host(
+        m_log,
+        [&](cbdc::threepc::runtime_locking_shard::key_type k,
+            cbdc::threepc::broker::interface::try_lock_callback_type cb) {
+            cb(m[k]);
+            return true;
+        },
+        tx_ctx,
+        nullptr);
+    ASSERT_EQ(host.set_storage(addr3, val2, val2), EVMC_STORAGE_ADDED);
+    ASSERT_FALSE(host.should_retry());
+    m = host.get_state_updates();
+
+    host = cbdc::threepc::agent::runner::evm_host(
+        m_log,
+        [&](cbdc::threepc::runtime_locking_shard::key_type k,
+            cbdc::threepc::broker::interface::try_lock_callback_type cb) {
+            cb(m[k]);
+            return true;
+        },
+        tx_ctx,
+        nullptr);
+    const auto& chost = host;
+
+    // Null bytes returned for non-existing accounts.
+    EXPECT_EQ(chost.get_storage(addr1, {}), evmc::bytes32{});
+    EXPECT_EQ(chost.get_storage(addr2, {}), evmc::bytes32{});
+
+    // Set storage on non-existing account creates the account.
+    EXPECT_EQ(host.set_storage(addr1, val1, val2), EVMC_STORAGE_ADDED);
+    EXPECT_EQ(chost.get_storage(addr2, val1), evmc::bytes32{});
+    EXPECT_EQ(host.set_storage(addr2, val1, val2), EVMC_STORAGE_ADDED);
+    EXPECT_EQ(chost.get_storage(addr2, val1), val2);
+    EXPECT_EQ(host.set_storage(addr2, val1, val2), EVMC_STORAGE_UNCHANGED);
+    EXPECT_EQ(chost.get_storage(addr2, val1), val2);
+    EXPECT_EQ(host.set_storage(addr2, val1, val3),
+              EVMC_STORAGE_MODIFIED_AGAIN);
+    EXPECT_EQ(chost.get_storage(addr2, val1), val3);
+    EXPECT_EQ(host.set_storage(addr2, val1, val1),
+              EVMC_STORAGE_MODIFIED_AGAIN);
+    EXPECT_EQ(chost.get_storage(addr2, val1), val1);
+
+    EXPECT_EQ(chost.get_storage(addr2, val3), evmc::bytes32{});
+    EXPECT_EQ(host.set_storage(addr2, val3, evmc::bytes32{}),
+              EVMC_STORAGE_UNCHANGED);
+    EXPECT_EQ(chost.get_storage(addr2, val3), evmc::bytes32{});
+    EXPECT_EQ(host.set_storage(addr2, val3, val3), EVMC_STORAGE_MODIFIED);
+    EXPECT_EQ(chost.get_storage(addr2, val3), val3);
+    EXPECT_EQ(host.set_storage(addr2, val3, val1),
+              EVMC_STORAGE_MODIFIED_AGAIN);
+    EXPECT_EQ(chost.get_storage(addr2, val3), val1);
+
+    // Set storage to zero on an existing storage location deletes it
+    EXPECT_EQ(host.set_storage(addr3, val2, val1), EVMC_STORAGE_DELETED);
+}

@@ -94,18 +94,32 @@ namespace cbdc::threepc::agent::runner {
                                const evmc::bytes32& key,
                                const evmc::bytes32& value) noexcept
         -> evmc_storage_status {
+        auto ret_val = std::optional<evmc_storage_status>();
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             maybe_acc = evm_account();
+            ret_val = EVMC_STORAGE_ADDED;
+            maybe_acc.value().m_modified.insert(key);
         }
         auto& acc = maybe_acc.value();
         auto prev_value = acc.m_storage[key];
+        auto modified = acc.m_modified.find(key) != acc.m_modified.end();
+        if(!ret_val.has_value()) {
+            if(prev_value == value) {
+                ret_val = EVMC_STORAGE_UNCHANGED;
+            } else if(evmc::is_zero(value) && !modified) {
+                ret_val = EVMC_STORAGE_DELETED;
+            } else if(modified) {
+                ret_val = EVMC_STORAGE_MODIFIED_AGAIN;
+            } else {
+                ret_val = EVMC_STORAGE_MODIFIED;
+                acc.m_modified.insert(key);
+            }
+        }
         acc.m_storage[key] = value;
         m_accounts[addr] = acc;
-        // TODO: there are other possible return values to this method that we
-        //       need to implement to match ETH's gas calculation.
-        return (prev_value == value) ? EVMC_STORAGE_UNCHANGED
-                                     : EVMC_STORAGE_MODIFIED;
+        assert(ret_val.has_value());
+        return ret_val.value();
     }
 
     auto evm_host::get_balance(const evmc::address& addr) const noexcept

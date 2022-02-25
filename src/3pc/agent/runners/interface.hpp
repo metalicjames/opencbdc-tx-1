@@ -84,6 +84,7 @@ namespace cbdc::threepc::agent::runner {
         virtual auto run() -> bool = 0;
 
         friend class lua_runner;
+        friend class evm_runner;
 
       private:
         std::shared_ptr<logging::log> m_log;

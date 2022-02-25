@@ -14,6 +14,6 @@ namespace cbdc::threepc::agent::runner {
         : m_log(std::move(logger)),
           m_function(std::move(function)),
           m_param(std::move(param)),
-          m_result_callback(std::move(result_callback)),
-          m_try_lock_callback(std::move(try_lock_callback)) {}
+          m_result_callback(result_callback),
+          m_try_lock_callback(try_lock_callback) {}
 }

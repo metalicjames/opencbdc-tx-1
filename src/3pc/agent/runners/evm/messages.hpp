@@ -8,6 +8,7 @@
 
 #include <evmc/evmc.hpp>
 #include <map>
+#include <set>
 #include <vector>
 
 namespace cbdc::threepc::agent::runner {
@@ -15,6 +16,7 @@ namespace cbdc::threepc::agent::runner {
         evmc::uint256be m_balance;
         std::vector<uint8_t> m_code;
         std::map<evmc::bytes32, evmc::bytes32> m_storage;
+        std::set<evmc::bytes32> m_modified;
         bool m_destruct{false};
     };
 }

@@ -31,13 +31,7 @@ namespace cbdc::threepc::agent::runner {
         auto run() -> bool override;
 
       private:
-        std::shared_ptr<logging::log> m_log;
-        runtime_locking_shard::value_type m_function;
-        parameter_type m_param;
-        run_callback_type m_result_callback;
-        try_lock_callback_type m_try_lock_callback;
         std::shared_ptr<evmc::VM> m_vm;
-
         std::thread m_evm_thread;
     };
 }
