@@ -11,12 +11,14 @@ namespace cbdc {
     auto operator<<(serializer& ser,
                     const threepc::agent::runner::evm_account& acc)
         -> serializer& {
-        return ser << acc.m_balance << acc.m_code << acc.m_storage;
+        return ser << acc.m_balance << acc.m_code << acc.m_storage
+                   << acc.m_nonce;
     }
 
     auto operator>>(serializer& deser,
                     threepc::agent::runner::evm_account& acc) -> serializer& {
-        return deser >> acc.m_balance >> acc.m_code >> acc.m_storage;
+        return deser >> acc.m_balance >> acc.m_code >> acc.m_storage
+            >> acc.m_nonce;
     }
 
     auto operator<<(serializer& ser, const evmc::address& addr)
@@ -38,5 +40,17 @@ namespace cbdc {
     auto operator>>(serializer& deser, evmc::bytes32& b) -> serializer& {
         deser.read(b.bytes, sizeof(b.bytes));
         return deser;
+    }
+
+    auto operator<<(serializer& ser, const threepc::agent::runner::evm_tx& tx)
+        -> serializer& {
+        return ser << tx.m_from << tx.m_to << tx.m_value << tx.m_nonce
+                   << tx.m_gas_price << tx.m_gas_limit << tx.m_input;
+    }
+
+    auto operator>>(serializer& deser, threepc::agent::runner::evm_tx& tx)
+        -> serializer& {
+        return deser >> tx.m_from >> tx.m_to >> tx.m_value >> tx.m_nonce
+            >> tx.m_gas_price >> tx.m_gas_limit >> tx.m_input;
     }
 }

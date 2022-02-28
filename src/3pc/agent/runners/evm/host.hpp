@@ -82,6 +82,8 @@ namespace cbdc::threepc::agent::runner {
 
         auto should_retry() const -> bool;
 
+        void insert_account(const evmc::address& addr, const evm_account& acc);
+
       private:
         std::shared_ptr<logging::log> m_log;
         runner::interface::try_lock_callback_type m_try_lock_callback;

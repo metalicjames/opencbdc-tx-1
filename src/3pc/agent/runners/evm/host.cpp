@@ -204,6 +204,17 @@ namespace cbdc::threepc::agent::runner {
     }
 
     auto evm_host::call(const evmc_message& msg) noexcept -> evmc::result {
+        // Decrement message value from sender account
+        auto maybe_acc = get_account(msg.sender);
+        assert(maybe_acc.has_value());
+        auto& acc = maybe_acc.value();
+        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
+        auto new_bal = acc_bal - evmc::load64be(msg.value.bytes);
+        acc.m_balance = evmc::uint256be(new_bal);
+        m_accounts[msg.sender] = acc;
+
+        // TODO: increment to account balance
+
         if(msg.kind == EVMC_CREATE2 || msg.kind == EVMC_CREATE) {
             auto res = m_vm->execute(*this, EVMC_HOMESTEAD, msg, nullptr, 0);
             return res;
@@ -292,5 +303,11 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::should_retry() const -> bool {
         return m_retry;
+    }
+
+    void evm_host::insert_account(const evmc::address& addr,
+                                  const evm_account& acc) {
+        m_accounts.insert({addr, acc});
+        m_accessed_addresses.insert(addr);
     }
 }

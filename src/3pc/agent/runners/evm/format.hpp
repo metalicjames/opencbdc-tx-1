@@ -21,6 +21,11 @@ namespace cbdc {
 
     auto operator<<(serializer& ser, const evmc::bytes32& b) -> serializer&;
     auto operator>>(serializer& deser, evmc::bytes32& b) -> serializer&;
+
+    auto operator<<(serializer& ser, const threepc::agent::runner::evm_tx& tx)
+        -> serializer&;
+    auto operator>>(serializer& deser, threepc::agent::runner::evm_tx& tx)
+        -> serializer&;
 }
 
 #endif
