@@ -7,6 +7,7 @@
 
 #include "format.hpp"
 #include "host.hpp"
+#include "util.hpp"
 
 #include <evmc/loader.h>
 
@@ -29,16 +30,6 @@ namespace cbdc::threepc::agent::runner {
     }
 
     auto evm_runner::run() -> bool {
-        /*const auto* config_string = "libexample-vm.dylib";
-        auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
-
-        m_vm = std::make_shared<evmc::VM>(
-            evmc_load_and_configure(config_string, &load_error));
-        if(!(*m_vm)) {
-            m_log->error("Unable to load EVM implementation");
-            return false;
-        }*/
-
         auto maybe_from_acc = from_buffer<evm_account>(m_function);
         if(!maybe_from_acc.has_value()) {
             m_log->error("Unable to deserialize account");
@@ -53,8 +44,8 @@ namespace cbdc::threepc::agent::runner {
         }
         auto& tx = maybe_tx.value();
 
-        auto tx_nonce = evmc::load64be(tx.m_nonce.bytes);
-        auto acc_nonce = evmc::load64be(from_acc.m_nonce.bytes);
+        auto tx_nonce = to_uint64(tx.m_nonce);
+        auto acc_nonce = to_uint64(from_acc.m_nonce);
 
         if(acc_nonce + 1 != tx_nonce) {
             m_log->trace("TX has incorrect nonce for from account");
@@ -62,10 +53,10 @@ namespace cbdc::threepc::agent::runner {
             return true;
         }
 
-        auto gas_limit = evmc::load64be(tx.m_gas_limit.bytes);
-        auto gas_price = evmc::load64be(tx.m_gas_price.bytes);
-        auto value = evmc::load64be(tx.m_value.bytes);
-        auto balance = evmc::load64be(from_acc.m_balance.bytes);
+        auto gas_limit = to_uint64(tx.m_gas_limit);
+        auto gas_price = to_uint64(tx.m_gas_price);
+        auto value = to_uint64(tx.m_value);
+        auto balance = to_uint64(from_acc.m_balance);
 
         auto total_gas_cost = gas_limit * gas_price;
 
@@ -87,6 +78,16 @@ namespace cbdc::threepc::agent::runner {
         tx_ctx.block_gas_limit = static_cast<int64_t>(gas_limit);
         tx_ctx.tx_origin = tx.m_from;
         tx_ctx.tx_gas_price = tx.m_gas_price;
+
+        const auto* config_string = "libexample-vm.dylib";
+        auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
+
+        m_vm = std::make_shared<evmc::VM>(
+            evmc_load_and_configure(config_string, &load_error));
+        if(!(*m_vm)) {
+            m_log->error("Unable to load EVM implementation");
+            return false;
+        }
 
         auto host = std::make_shared<evm_host>(m_log,
                                                m_try_lock_callback,

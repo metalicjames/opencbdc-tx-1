@@ -13,10 +13,10 @@
 
 namespace cbdc::threepc::agent::runner {
     struct evm_account {
-        evmc::uint256be m_balance;
+        evmc::uint256be m_balance{};
         std::vector<uint8_t> m_code;
         std::map<evmc::bytes32, evmc::bytes32> m_storage;
-        evmc::uint256be m_nonce;
+        evmc::uint256be m_nonce{};
         std::set<evmc::bytes32> m_modified;
         bool m_destruct{false};
     };

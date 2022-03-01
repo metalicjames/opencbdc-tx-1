@@ -5,6 +5,7 @@
 
 #include "../util.hpp"
 #include "3pc/agent/impl.hpp"
+#include "3pc/agent/runners/evm/format.hpp"
 #include "3pc/agent/runners/evm/impl.hpp"
 #include "3pc/broker/impl.hpp"
 #include "3pc/directory/impl.hpp"
@@ -18,10 +19,24 @@
 class evm_test : public ::testing::Test {
   protected:
     void SetUp() override {
-        m_contract_key.append("deploy", 6);
-        m_contract
+        m_addr0.append("a0", 2);
+        m_addr0.extend(18);
+        m_addr1.append("a1", 2);
+        m_addr1.extend(18);
+        auto contract
             = cbdc::buffer::from_hex("4360005543600052596000f3").value();
-        cbdc::test::add_to_shard(m_broker, m_contract_key, m_contract);
+
+        auto acc = cbdc::threepc::agent::runner::evm_account();
+        acc.m_balance = evmc::uint256be(1000000);
+        acc.m_code.resize(contract.size());
+        std::memcpy(acc.m_code.data(), contract.data(), contract.size());
+        auto acc_buf = cbdc::make_buffer(acc);
+        cbdc::test::add_to_shard(m_broker, m_addr0, acc_buf);
+
+        auto acc1 = cbdc::threepc::agent::runner::evm_account();
+        acc1.m_balance = evmc::uint256be(1000000);
+        auto acc1_buf = cbdc::make_buffer(acc1);
+        cbdc::test::add_to_shard(m_broker, m_addr1, acc1_buf);
     }
 
     std::shared_ptr<cbdc::logging::log> m_log{
@@ -41,12 +56,21 @@ class evm_test : public ::testing::Test {
             m_directory,
             m_log)};
 
-    cbdc::buffer m_contract_key;
-    cbdc::buffer m_contract;
+    cbdc::buffer m_addr0;
+    cbdc::buffer m_addr1;
 };
 
 TEST_F(evm_test, initial_test) {
-    auto params = cbdc::buffer();
+    auto tx = cbdc::threepc::agent::runner::evm_tx();
+    std::memcpy(tx.m_from.bytes, m_addr1.data(), m_addr1.size());
+    tx.m_to = evmc::address();
+    std::memcpy(tx.m_to->bytes, m_addr0.data(), m_addr0.size());
+    tx.m_nonce = evmc::uint256be(1);
+    tx.m_value = evmc::uint256be(1000);
+    tx.m_gas_price = evmc::uint256be(1);
+    tx.m_gas_limit = evmc::uint256be(200000);
+    auto params = cbdc::make_buffer(tx);
+
     auto prom = std::promise<void>();
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
@@ -54,7 +78,7 @@ TEST_F(evm_test, initial_test) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_contract_key,
+        m_addr1,
         params,
         [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
             ASSERT_TRUE(

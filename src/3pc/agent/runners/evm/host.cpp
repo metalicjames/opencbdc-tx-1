@@ -7,6 +7,7 @@
 
 #include "crypto/sha256.h"
 #include "format.hpp"
+#include "util.hpp"
 
 #include <cassert>
 #include <evmc/hex.hpp>
@@ -342,7 +343,7 @@ namespace cbdc::threepc::agent::runner {
         assert(maybe_acc.has_value());
         auto& acc = maybe_acc.value();
         // TODO: 256-bit integer precision
-        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
+        auto acc_bal = to_uint64(acc.m_balance);
         auto val = uint64_t{};
         if(evmc::is_zero(value)) {
             // Special case: destruct the from account if we're transfering the
@@ -350,7 +351,7 @@ namespace cbdc::threepc::agent::runner {
             val = acc_bal;
             acc.m_destruct = true;
         } else {
-            val = evmc::load64be(value.bytes);
+            val = to_uint64(value);
         }
         auto new_bal = acc_bal - val;
         acc.m_balance = evmc::uint256be(new_bal);
@@ -362,7 +363,7 @@ namespace cbdc::threepc::agent::runner {
             maybe_to_acc = evm_account();
         }
         auto& to_acc = maybe_to_acc.value();
-        auto to_acc_bal = evmc::load64be(to_acc.m_balance.bytes);
+        auto to_acc_bal = to_uint64(to_acc.m_balance);
         auto new_to_acc_bal = to_acc_bal + val;
         to_acc.m_balance = evmc::uint256be(new_to_acc_bal);
         m_accounts[to] = to_acc;
