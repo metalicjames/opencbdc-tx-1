@@ -180,44 +180,59 @@ namespace cbdc::threepc::agent::runner {
 
     void evm_host::selfdestruct(const evmc::address& addr,
                                 const evmc::address& beneficiary) noexcept {
-        auto maybe_acc = get_account(addr);
-        if(!maybe_acc.has_value()) {
-            return;
-        }
-        auto& acc = maybe_acc.value();
-
-        auto maybe_ben = get_account(beneficiary);
-        if(!maybe_ben.has_value()) {
-            maybe_ben = evm_account();
-        }
-        auto& ben = maybe_ben.value();
-
-        // TODO: 256-bit integer precision
-        auto ben_bal = evmc::load64be(ben.m_balance.bytes);
-        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
-        auto new_bal = ben_bal + acc_bal;
-        ben.m_balance = evmc::uint256be(new_bal);
-        acc.m_balance = {};
-        acc.m_destruct = true;
-        m_accounts[addr] = acc;
-        m_accounts[beneficiary] = ben;
+        transfer(addr, beneficiary, evmc::uint256be{});
     }
 
     auto evm_host::call(const evmc_message& msg) noexcept -> evmc::result {
-        // Decrement message value from sender account
-        auto maybe_acc = get_account(msg.sender);
-        assert(maybe_acc.has_value());
-        auto& acc = maybe_acc.value();
-        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
-        auto new_bal = acc_bal - evmc::load64be(msg.value.bytes);
-        acc.m_balance = evmc::uint256be(new_bal);
-        m_accounts[msg.sender] = acc;
-
-        // TODO: increment to account balance
-
         if(msg.kind == EVMC_CREATE2 || msg.kind == EVMC_CREATE) {
-            auto res = m_vm->execute(*this, EVMC_HOMESTEAD, msg, nullptr, 0);
+            auto maybe_sender_acc = get_account(msg.sender);
+            assert(maybe_sender_acc.has_value());
+            auto& sender_acc = maybe_sender_acc.value();
+
+            // TODO: make deployment address match Ethereum implementation
+            auto sha = CSHA256();
+            sha.Write(msg.sender.bytes, sizeof(msg.sender.bytes));
+            sha.Write(sender_acc.m_nonce.bytes,
+                      sizeof(sender_acc.m_nonce.bytes));
+            auto addr_hash = std::array<unsigned char, CSHA256::OUTPUT_SIZE>();
+            sha.Finalize(addr_hash.data());
+
+            auto new_addr = evmc::address();
+            std::memcpy(new_addr.bytes,
+                        addr_hash.data(),
+                        sizeof(new_addr.bytes));
+
+            auto new_acc = evm_account();
+            new_acc.m_code.resize(msg.input_size);
+            std::memcpy(new_acc.m_code.data(), msg.input_data, msg.input_size);
+            m_accounts[new_addr] = new_acc;
+
+            // Transfer endowment to deployed contract account
+            if(!evmc::is_zero(msg.value)) {
+                transfer(msg.sender, new_addr, msg.value);
+            }
+
+            auto call_msg = evmc_message();
+            call_msg.depth = 0;
+            call_msg.sender = msg.sender;
+            call_msg.value = msg.value;
+            call_msg.recipient = new_addr;
+            call_msg.kind = EVMC_CALL;
+            // TODO: do we need to deduct some gas for contract creation here?
+            call_msg.gas = msg.gas;
+
+            auto res = m_vm->execute(*this,
+                                     EVMC_HOMESTEAD,
+                                     call_msg,
+                                     msg.input_data,
+                                     msg.input_size);
             return res;
+        }
+
+        // Transfer message value from sender account to recipient
+        if(!evmc::is_zero(msg.value) && msg.kind == EVMC_CALL) {
+            // TODO: do DELETEGATECALL and CALLCODE transfer value as well?
+            transfer(msg.sender, msg.recipient, msg.value);
         }
 
         auto code_addr
@@ -226,6 +241,15 @@ namespace cbdc::threepc::agent::runner {
                 : msg.recipient;
 
         auto code_size = get_code_size(code_addr);
+        if(code_size == 0) {
+            // TODO: deduct simple send fixed gas amount
+            auto res = evmc::make_result(evmc_status_code::EVMC_SUCCESS,
+                                         msg.gas,
+                                         nullptr,
+                                         0);
+            return evmc::result(res);
+        }
+
         auto code_buf = std::vector<uint8_t>(code_size);
         [[maybe_unused]] auto n
             = copy_code(code_addr, 0, code_buf.data(), code_buf.size());
@@ -309,5 +333,38 @@ namespace cbdc::threepc::agent::runner {
                                   const evm_account& acc) {
         m_accounts.insert({addr, acc});
         m_accessed_addresses.insert(addr);
+    }
+
+    void evm_host::transfer(const evmc::address& from,
+                            const evmc::address& to,
+                            const evmc::uint256be& value) {
+        auto maybe_acc = get_account(from);
+        assert(maybe_acc.has_value());
+        auto& acc = maybe_acc.value();
+        // TODO: 256-bit integer precision
+        auto acc_bal = evmc::load64be(acc.m_balance.bytes);
+        auto val = uint64_t{};
+        if(evmc::is_zero(value)) {
+            // Special case: destruct the from account if we're transfering the
+            // entire account balance
+            val = acc_bal;
+            acc.m_destruct = true;
+        } else {
+            val = evmc::load64be(value.bytes);
+        }
+        auto new_bal = acc_bal - val;
+        acc.m_balance = evmc::uint256be(new_bal);
+        m_accounts[from] = acc;
+
+        auto maybe_to_acc = get_account(to);
+        if(!maybe_to_acc.has_value()) {
+            // Create the to account if it doesn't exist
+            maybe_to_acc = evm_account();
+        }
+        auto& to_acc = maybe_to_acc.value();
+        auto to_acc_bal = evmc::load64be(to_acc.m_balance.bytes);
+        auto new_to_acc_bal = to_acc_bal + val;
+        to_acc.m_balance = evmc::uint256be(new_to_acc_bal);
+        m_accounts[to] = to_acc;
     }
 }

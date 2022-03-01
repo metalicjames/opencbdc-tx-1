@@ -99,6 +99,10 @@ namespace cbdc::threepc::agent::runner {
 
         [[nodiscard]] auto get_account(const evmc::address& addr) const
             -> std::optional<evm_account>;
+
+        void transfer(const evmc::address& from,
+                      const evmc::address& to,
+                      const evmc::uint256be& value);
     };
 }
 
