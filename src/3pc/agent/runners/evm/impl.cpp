@@ -20,8 +20,8 @@ namespace cbdc::threepc::agent::runner {
         : interface(std::move(logger),
                     std::move(function),
                     std::move(param),
-                    result_callback,
-                    try_lock_callback) {}
+                    std::move(result_callback),
+                    std::move(try_lock_callback)) {}
 
     evm_runner::~evm_runner() {
         if(m_evm_thread.joinable()) {
@@ -129,7 +129,7 @@ namespace cbdc::threepc::agent::runner {
     }
 
     void evm_runner::exec(const evmc_message& msg,
-                          std::shared_ptr<evm_host> host) {
+                          const std::shared_ptr<evm_host>& host) {
         auto result = host->call(msg);
         // TODO: gas refund to origin account
         if(result.status_code != EVMC_SUCCESS) {

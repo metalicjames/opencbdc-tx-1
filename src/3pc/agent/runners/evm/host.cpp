@@ -275,14 +275,20 @@ namespace cbdc::threepc::agent::runner {
         return {};
     }
 
-    void evm_host::emit_log(const evmc::address& addr,
-                            const uint8_t* data,
-                            size_t data_size,
-                            const evmc::bytes32 topics[],
-                            size_t topics_count) noexcept {
+    void evm_host::emit_log(
+        const evmc::address& addr,
+        const uint8_t* data,
+        size_t data_size,
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+        const evmc::bytes32 topics[],
+        size_t topics_count) noexcept {
         std::stringstream ss;
-        for(size_t i = 0; i < topics_count; i++) {
-            ss << evmc::hex(topics[i].bytes);
+        auto topics_vec = std::vector<evmc::bytes32>(topics_count);
+        std::memcpy(topics_vec.data(),
+                    topics,
+                    topics_count * sizeof(evmc::bytes32));
+        for(auto& t : topics_vec) {
+            ss << evmc::hex(t.bytes);
         }
         auto data_bytes = evmc::bytes(data, data_size);
         m_log->debug("EVM:",

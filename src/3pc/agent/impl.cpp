@@ -13,13 +13,15 @@ namespace cbdc::threepc::agent {
                std::shared_ptr<broker::interface> broker,
                runtime_locking_shard::key_type function,
                parameter_type param,
-               exec_callback_type result_callback)
+               exec_callback_type result_callback,
+               broker::lock_type initial_lock_type)
         : interface(std::move(function),
                     std::move(param),
                     std::move(result_callback)),
           m_log(std::move(logger)),
           m_runner_factory(std::move(runner_factory)),
-          m_broker(std::move(broker)) {}
+          m_broker(std::move(broker)),
+          m_initial_lock_type(initial_lock_type) {}
 
     auto impl::exec() -> bool {
         std::unique_lock l(m_mut);
@@ -125,7 +127,7 @@ namespace cbdc::threepc::agent {
         auto tl_success = m_broker->try_lock(
             m_ticket_number.value(),
             get_function(),
-            broker::lock_type::read,
+            m_initial_lock_type,
             [this](const broker::interface::try_lock_return_type& lock_res) {
                 handle_function(lock_res);
             });

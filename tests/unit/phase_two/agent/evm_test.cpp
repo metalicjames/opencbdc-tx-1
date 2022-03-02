@@ -85,7 +85,8 @@ TEST_F(evm_test, initial_test) {
                 std::holds_alternative<cbdc::threepc::agent::return_type>(
                     res));
             prom.set_value();
-        });
+        },
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
     auto res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -107,8 +108,9 @@ TEST_F(evm_test, host_storage) {
 
     auto host = cbdc::threepc::agent::runner::evm_host(
         m_log,
-        [&](cbdc::threepc::runtime_locking_shard::key_type k,
-            cbdc::threepc::broker::interface::try_lock_callback_type cb) {
+        [&](const cbdc::threepc::runtime_locking_shard::key_type& k,
+            const cbdc::threepc::broker::interface::try_lock_callback_type&
+                cb) {
             cb(m[k]);
             return true;
         },
@@ -120,8 +122,9 @@ TEST_F(evm_test, host_storage) {
 
     host = cbdc::threepc::agent::runner::evm_host(
         m_log,
-        [&](cbdc::threepc::runtime_locking_shard::key_type k,
-            cbdc::threepc::broker::interface::try_lock_callback_type cb) {
+        [&](const cbdc::threepc::runtime_locking_shard::key_type& k,
+            const cbdc::threepc::broker::interface::try_lock_callback_type&
+                cb) {
             cb(m[k]);
             return true;
         },

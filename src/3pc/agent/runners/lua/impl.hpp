@@ -31,6 +31,8 @@ namespace cbdc::threepc::agent::runner {
         /// \return true.
         auto run() -> bool override;
 
+        static constexpr auto initial_lock_type = broker::lock_type::read;
+
       private:
         std::shared_ptr<lua_State> m_state;
 

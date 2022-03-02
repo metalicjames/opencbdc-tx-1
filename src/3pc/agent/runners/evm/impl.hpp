@@ -30,11 +30,14 @@ namespace cbdc::threepc::agent::runner {
 
         auto run() -> bool override;
 
+        static constexpr auto initial_lock_type = broker::lock_type::write;
+
       private:
         std::shared_ptr<evmc::VM> m_vm;
         std::thread m_evm_thread;
 
-        void exec(const evmc_message& msg, std::shared_ptr<evm_host> host);
+        void exec(const evmc_message& msg,
+                  const std::shared_ptr<evm_host>& host);
     };
 }
 

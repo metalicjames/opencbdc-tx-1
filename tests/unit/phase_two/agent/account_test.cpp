@@ -192,7 +192,8 @@ TEST_F(account_test, pay_test) {
             ASSERT_EQ(exp_ret,
                       std::get<cbdc::threepc::agent::return_type>(res));
             complete = true;
-        });
+        },
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
     ASSERT_TRUE(complete);
 }

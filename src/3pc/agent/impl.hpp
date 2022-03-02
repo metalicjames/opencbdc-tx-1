@@ -64,12 +64,15 @@ namespace cbdc::threepc::agent {
         /// \param param function parameter.
         /// \param result_callback function to call with function execution
         ///                        result.
+        /// \param initial_lock_type type of lock to acquire on initial
+        ///                          function code.
         impl(std::shared_ptr<logging::log> logger,
              runner::interface::factory_type runner_factory,
              std::shared_ptr<broker::interface> broker,
              runtime_locking_shard::key_type function,
              parameter_type param,
-             exec_callback_type result_callback);
+             exec_callback_type result_callback,
+             broker::lock_type initial_lock_type);
 
         /// Ensures function execution is complete before destruction.
         ~impl() override;
@@ -103,6 +106,7 @@ namespace cbdc::threepc::agent {
         state m_state{state::init};
         bool m_permanent_error{false};
         mutable std::recursive_mutex m_mut;
+        broker::lock_type m_initial_lock_type;
 
         void handle_begin(broker::interface::begin_return_type res);
 

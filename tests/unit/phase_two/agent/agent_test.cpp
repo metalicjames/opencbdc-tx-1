@@ -91,7 +91,8 @@ TEST_F(agent_test, deploy_test) {
             auto ret = cbdc::threepc::agent::return_type(
                 {{contract_name, m_deploy_contract}});
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
-        });
+        },
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
 }
 
@@ -115,7 +116,8 @@ TEST_F(agent_test, rollback_test) {
                     function_execution);
             ASSERT_FALSE(callback_called);
             callback_called = true;
-        });
+        },
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
     ASSERT_TRUE(agent->exec());
 }
@@ -157,7 +159,8 @@ TEST_F(agent_test, wound_deploy_test) {
                 {{contract_name, m_deploy_contract}});
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
             agent0_complete = true;
-        });
+        },
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     auto agent1 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
         &cbdc::threepc::agent::runner::factory<
@@ -173,7 +176,8 @@ TEST_F(agent_test, wound_deploy_test) {
                 {{contract_name, m_deploy_contract}});
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
             agent1_complete = true;
-        });
+        },
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     std::thread t0([&]() {
         ASSERT_TRUE(agent0->exec());
     });
