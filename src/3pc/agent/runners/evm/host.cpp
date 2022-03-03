@@ -340,6 +340,7 @@ namespace cbdc::threepc::agent::runner {
                                   const evm_account& acc) {
         m_accounts.insert({addr, acc});
         m_accessed_addresses.insert(addr);
+        m_init_state = m_accounts;
     }
 
     void evm_host::transfer(const evmc::address& from,
@@ -373,5 +374,19 @@ namespace cbdc::threepc::agent::runner {
         auto new_to_acc_bal = to_acc_bal + val;
         to_acc.m_balance = evmc::uint256be(new_to_acc_bal);
         m_accounts[to] = to_acc;
+    }
+
+    void evm_host::finalize(int64_t gas_left) {
+        auto maybe_acc = get_account(m_tx_context.tx_origin);
+        assert(maybe_acc.has_value());
+        auto& acc = maybe_acc.value();
+        auto acc_bal = to_uint64(acc.m_balance);
+        auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
+        acc.m_balance = evmc::uint256be(new_bal);
+        m_accounts[m_tx_context.tx_origin] = acc;
+    }
+
+    void evm_host::revert() {
+        m_accounts = m_init_state;
     }
 }

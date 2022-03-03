@@ -84,6 +84,10 @@ namespace cbdc::threepc::agent::runner {
 
         void insert_account(const evmc::address& addr, const evm_account& acc);
 
+        void finalize(int64_t gas_left);
+
+        void revert();
+
       private:
         std::shared_ptr<logging::log> m_log;
         runner::interface::try_lock_callback_type m_try_lock_callback;
@@ -96,6 +100,8 @@ namespace cbdc::threepc::agent::runner {
             m_accessed_storage_keys;
 
         mutable bool m_retry{false};
+
+        std::map<evmc::address, evm_account> m_init_state;
 
         [[nodiscard]] auto get_account(const evmc::address& addr) const
             -> std::optional<evm_account>;

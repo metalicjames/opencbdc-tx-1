@@ -42,9 +42,9 @@ namespace cbdc::threepc::agent::runner {
             m_log->error("Unable to deserialize transaction");
             return false;
         }
-        auto& tx = maybe_tx.value();
+        auto tx = std::make_shared<evm_tx>(maybe_tx.value());
 
-        auto tx_nonce = to_uint64(tx.m_nonce);
+        auto tx_nonce = to_uint64(tx->m_nonce);
         auto acc_nonce = to_uint64(from_acc.m_nonce);
 
         if(acc_nonce + 1 != tx_nonce) {
@@ -53,9 +53,9 @@ namespace cbdc::threepc::agent::runner {
             return true;
         }
 
-        auto gas_limit = to_uint64(tx.m_gas_limit);
-        auto gas_price = to_uint64(tx.m_gas_price);
-        auto value = to_uint64(tx.m_value);
+        auto gas_limit = to_uint64(tx->m_gas_limit);
+        auto gas_price = to_uint64(tx->m_gas_price);
+        auto value = to_uint64(tx->m_value);
         auto balance = to_uint64(from_acc.m_balance);
 
         auto total_gas_cost = gas_limit * gas_price;
@@ -76,8 +76,8 @@ namespace cbdc::threepc::agent::runner {
             = std::chrono::time_point_cast<std::chrono::seconds>(now);
         tx_ctx.block_timestamp = timestamp.time_since_epoch().count();
         tx_ctx.block_gas_limit = static_cast<int64_t>(gas_limit);
-        tx_ctx.tx_origin = tx.m_from;
-        tx_ctx.tx_gas_price = tx.m_gas_price;
+        tx_ctx.tx_origin = tx->m_from;
+        tx_ctx.tx_gas_price = tx->m_gas_price;
 
         const auto* config_string = "libexample-vm.dylib";
         auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
@@ -100,28 +100,27 @@ namespace cbdc::threepc::agent::runner {
         // Increment nonce
         auto new_nonce = acc_nonce + 1;
         from_acc.m_nonce = evmc::uint256be(new_nonce);
-        host->insert_account(tx.m_from, from_acc);
+        host->insert_account(tx->m_from, from_acc);
 
         auto msg = evmc_message();
-        msg.sender = tx.m_from;
-        msg.value = tx.m_value;
-        // TODO: make sure tx.m_input remains in scope
-        msg.input_data = tx.m_input.data();
-        msg.input_size = tx.m_input.size();
+        msg.sender = tx->m_from;
+        msg.value = tx->m_value;
+        msg.input_data = tx->m_input.data();
+        msg.input_size = tx->m_input.size();
         msg.gas = static_cast<int64_t>(gas_limit);
         msg.depth = 0;
 
         // Determine transaction type
-        if(!tx.m_to.has_value()) {
+        if(!tx->m_to.has_value()) {
             // Create contract transaction
             msg.kind = EVMC_CREATE;
         } else {
             // Send transaction
             msg.kind = EVMC_CALL;
-            msg.recipient = tx.m_to.value();
+            msg.recipient = tx->m_to.value();
         }
 
-        m_evm_thread = std::thread([this, msg, host]() {
+        m_evm_thread = std::thread([this, msg, host, tx]() {
             exec(msg, host);
         });
 
@@ -131,14 +130,18 @@ namespace cbdc::threepc::agent::runner {
     void evm_runner::exec(const evmc_message& msg,
                           const std::shared_ptr<evm_host>& host) {
         auto result = host->call(msg);
-        // TODO: gas refund to origin account
-        if(result.status_code != EVMC_SUCCESS) {
-            m_log->error("Error running EVM contract",
+        if(result.status_code < 0) {
+            m_log->error("Internal error running EVM contract",
                          evmc::to_string(result.status_code));
-            m_result_callback(error_code::exec_error);
+            m_result_callback(error_code::internal_error);
         } else if(host->should_retry()) {
+            m_log->trace("Contract was wounded");
             m_result_callback(error_code::wounded);
         } else {
+            if(result.status_code == EVMC_REVERT) {
+                host->revert();
+            }
+            host->finalize(result.gas_left);
             auto state_updates = host->get_state_updates();
             m_result_callback(state_updates);
         }
