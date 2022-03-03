@@ -94,7 +94,7 @@ namespace cbdc::threepc::agent::runner {
         tx_ctx.tx_origin = tx->m_from;
         tx_ctx.tx_gas_price = tx->m_gas_price;
 
-        const auto* config_string = "libexample-vm.dylib";
+        const auto* config_string = "libevmone.dylib";
         auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
 
         m_vm = std::make_shared<evmc::VM>(

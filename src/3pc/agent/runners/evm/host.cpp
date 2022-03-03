@@ -218,7 +218,7 @@ namespace cbdc::threepc::agent::runner {
             call_msg.gas = msg.gas;
 
             auto res = m_vm->execute(*this,
-                                     EVMC_HOMESTEAD,
+                                     EVMC_LATEST_STABLE_REVISION,
                                      call_msg,
                                      msg.input_data,
                                      msg.input_size);
@@ -264,7 +264,7 @@ namespace cbdc::threepc::agent::runner {
         assert(n == code_size);
 
         auto res = m_vm->execute(*this,
-                                 EVMC_HOMESTEAD,
+                                 EVMC_LATEST_STABLE_REVISION,
                                  msg,
                                  code_buf.data(),
                                  code_buf.size());
