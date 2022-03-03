@@ -214,7 +214,7 @@ namespace cbdc::threepc::agent::runner {
             }
 
             auto call_msg = evmc_message();
-            call_msg.depth = 0;
+            call_msg.depth = msg.depth;
             call_msg.sender = msg.sender;
             call_msg.value = msg.value;
             call_msg.recipient = new_addr;
