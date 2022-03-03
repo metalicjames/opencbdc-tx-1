@@ -54,6 +54,21 @@ namespace cbdc::threepc::agent::runner {
         }
 
         auto gas_limit = to_uint64(tx->m_gas_limit);
+
+        constexpr uint64_t base_gas = 21000;
+        constexpr uint64_t creation_gas = 32000;
+
+        auto min_gas = base_gas;
+        if(!tx->m_to.has_value()) {
+            min_gas += creation_gas;
+        }
+
+        if(gas_limit < min_gas) {
+            m_log->trace("TX does not have enough base gas");
+            m_result_callback(error_code::exec_error);
+            return true;
+        }
+
         auto gas_price = to_uint64(tx->m_gas_price);
         auto value = to_uint64(tx->m_value);
         auto balance = to_uint64(from_acc.m_balance);
@@ -107,7 +122,7 @@ namespace cbdc::threepc::agent::runner {
         msg.value = tx->m_value;
         msg.input_data = tx->m_input.data();
         msg.input_size = tx->m_input.size();
-        msg.gas = static_cast<int64_t>(gas_limit);
+        msg.gas = static_cast<int64_t>(gas_limit - min_gas);
         msg.depth = 0;
 
         // Determine transaction type

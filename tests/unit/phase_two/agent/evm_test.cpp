@@ -23,6 +23,8 @@ class evm_test : public ::testing::Test {
         m_addr0.extend(18);
         m_addr1.append("a1", 2);
         m_addr1.extend(18);
+        m_addr2.append("a2", 2);
+        m_addr2.extend(18);
         auto contract
             = cbdc::buffer::from_hex("4360005543600052596000f3").value();
 
@@ -37,6 +39,11 @@ class evm_test : public ::testing::Test {
         acc1.m_balance = evmc::uint256be(1000000);
         auto acc1_buf = cbdc::make_buffer(acc1);
         cbdc::test::add_to_shard(m_broker, m_addr1, acc1_buf);
+
+        auto acc2 = cbdc::threepc::agent::runner::evm_account();
+        acc2.m_balance = evmc::uint256be(1000000);
+        auto acc2_buf = cbdc::make_buffer(acc2);
+        cbdc::test::add_to_shard(m_broker, m_addr2, acc2_buf);
     }
 
     std::shared_ptr<cbdc::logging::log> m_log{
@@ -58,6 +65,7 @@ class evm_test : public ::testing::Test {
 
     cbdc::buffer m_addr0;
     cbdc::buffer m_addr1;
+    cbdc::buffer m_addr2;
 };
 
 TEST_F(evm_test, initial_test) {
@@ -162,4 +170,59 @@ TEST_F(evm_test, host_storage) {
 
     // Set storage to zero on an existing storage location deletes it
     EXPECT_EQ(host.set_storage(addr3, val2, val1), EVMC_STORAGE_DELETED);
+}
+
+TEST_F(evm_test, simple_send) {
+    auto tx = cbdc::threepc::agent::runner::evm_tx();
+    std::memcpy(tx.m_from.bytes, m_addr1.data(), m_addr1.size());
+    tx.m_to = evmc::address();
+    std::memcpy(tx.m_to->bytes, m_addr2.data(), m_addr2.size());
+    tx.m_nonce = evmc::uint256be(1);
+    tx.m_value = evmc::uint256be(1000);
+    tx.m_gas_price = evmc::uint256be(1);
+    tx.m_gas_limit = evmc::uint256be(21000);
+    auto params = cbdc::make_buffer(tx);
+
+    auto prom = std::promise<void>();
+    auto fut = prom.get_future();
+    auto agent = std::make_shared<cbdc::threepc::agent::impl>(
+        m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::evm_runner>::create,
+        m_broker,
+        m_addr1,
+        params,
+        [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
+            ASSERT_TRUE(
+                std::holds_alternative<cbdc::threepc::agent::return_type>(
+                    res));
+            prom.set_value();
+        },
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+    ASSERT_TRUE(agent->exec());
+    auto res = fut.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(res, std::future_status::ready);
+
+    // Test send not working, not enough gas
+    tx.m_gas_limit = evmc::uint256be(20999);
+    tx.m_nonce = evmc::uint256be(2);
+    params = cbdc::make_buffer(tx);
+    prom = std::promise<void>();
+    fut = prom.get_future();
+    agent = std::make_shared<cbdc::threepc::agent::impl>(
+        m_log,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::evm_runner>::create,
+        m_broker,
+        m_addr1,
+        params,
+        [&](const cbdc::threepc::agent::interface::exec_return_type& r) {
+            ASSERT_TRUE(std::holds_alternative<
+                        cbdc::threepc::agent::interface::error_code>(r));
+            prom.set_value();
+        },
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+    ASSERT_TRUE(agent->exec());
+    res = fut.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(res, std::future_status::ready);
 }
