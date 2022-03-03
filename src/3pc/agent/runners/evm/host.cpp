@@ -203,11 +203,6 @@ namespace cbdc::threepc::agent::runner {
                         addr_hash.data(),
                         sizeof(new_addr.bytes));
 
-            auto new_acc = evm_account();
-            new_acc.m_code.resize(msg.input_size);
-            std::memcpy(new_acc.m_code.data(), msg.input_data, msg.input_size);
-            m_accounts[new_addr] = new_acc;
-
             // Transfer endowment to deployed contract account
             if(!evmc::is_zero(msg.value)) {
                 transfer(msg.sender, new_addr, msg.value);
@@ -227,6 +222,18 @@ namespace cbdc::threepc::agent::runner {
                                      call_msg,
                                      msg.input_data,
                                      msg.input_size);
+
+            if(res.status_code == EVMC_SUCCESS) {
+                auto maybe_acc = get_account(new_addr);
+                assert(maybe_acc.has_value());
+                auto& acc = maybe_acc.value();
+                acc.m_code.resize(res.output_size);
+                std::memcpy(acc.m_code.data(),
+                            res.output_data,
+                            res.output_size);
+                m_accounts[new_addr] = acc;
+            }
+
             return res;
         }
 
