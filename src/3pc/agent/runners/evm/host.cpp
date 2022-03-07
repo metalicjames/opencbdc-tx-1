@@ -30,6 +30,13 @@ namespace cbdc::threepc::agent::runner {
             return it->second;
         }
 
+        auto accessed_it = m_accessed_addresses.find(addr);
+        if(accessed_it != m_accessed_addresses.end()) {
+            // There is no account at this address, but we already know that
+            // so don't try to retrieve it again.
+            return std::nullopt;
+        }
+
         auto addr_key = cbdc::buffer();
         addr_key.append(&addr.bytes[0], sizeof(addr.bytes));
 
@@ -44,12 +51,14 @@ namespace cbdc::threepc::agent::runner {
             });
 
         if(!ret) {
+            m_log->trace("Failed to make try_lock request, retrying");
             m_retry = true;
             return std::nullopt;
         }
 
         auto res = res_fut.get();
         if(std::holds_alternative<broker::value_type>(res)) {
+            m_accessed_addresses.insert(addr);
             auto v = std::get<broker::value_type>(res);
             if(v.size() == 0) {
                 return std::nullopt;
@@ -60,6 +69,8 @@ namespace cbdc::threepc::agent::runner {
             m_accounts[addr] = acc;
             return acc;
         }
+
+        m_log->trace("Try_lock request returned an error, retrying");
 
         m_retry = true;
 

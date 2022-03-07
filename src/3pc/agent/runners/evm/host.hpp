@@ -95,7 +95,7 @@ namespace cbdc::threepc::agent::runner {
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;
 
-        std::set<evmc::address> m_accessed_addresses;
+        mutable std::set<evmc::address> m_accessed_addresses;
         std::set<std::pair<evmc::address, evmc::bytes32>>
             m_accessed_storage_keys;
 
