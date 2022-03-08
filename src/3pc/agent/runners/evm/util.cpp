@@ -9,4 +9,12 @@ namespace cbdc::threepc::agent::runner {
     auto to_uint64(const evmc::uint256be& v) -> uint64_t {
         return evmc::load64be(&v.bytes[sizeof(v.bytes) - sizeof(uint64_t)]);
     }
+
+    auto to_hex(const evmc::address& addr) -> std::string {
+        return evmc::hex(evmc::bytes(addr.bytes, sizeof(addr.bytes)));
+    }
+
+    auto to_hex(const evmc::bytes32& b) -> std::string {
+        return evmc::hex(evmc::bytes(b.bytes, sizeof(b.bytes)));
+    }
 }

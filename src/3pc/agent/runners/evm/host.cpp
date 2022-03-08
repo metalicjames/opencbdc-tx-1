@@ -90,6 +90,10 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::get_storage(const evmc::address& addr,
                                const evmc::bytes32& key) const noexcept
         -> evmc::bytes32 {
+        m_log->trace("EVM get_storage addr:",
+                     to_hex(addr),
+                     "key:",
+                     to_hex(key));
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return {};
@@ -106,6 +110,12 @@ namespace cbdc::threepc::agent::runner {
                                const evmc::bytes32& key,
                                const evmc::bytes32& value) noexcept
         -> evmc_storage_status {
+        m_log->trace("EVM set_storage addr:",
+                     to_hex(addr),
+                     "key:",
+                     to_hex(key),
+                     "val:",
+                     to_hex(value));
         auto ret_val = std::optional<evmc_storage_status>();
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
@@ -236,7 +246,9 @@ namespace cbdc::threepc::agent::runner {
 
             if(res.status_code == EVMC_SUCCESS) {
                 auto maybe_acc = get_account(new_addr);
-                assert(maybe_acc.has_value());
+                if(!maybe_acc.has_value()) {
+                    maybe_acc = evm_account();
+                }
                 auto& acc = maybe_acc.value();
                 acc.m_code.resize(res.output_size);
                 std::memcpy(acc.m_code.data(),
@@ -306,13 +318,10 @@ namespace cbdc::threepc::agent::runner {
                     topics,
                     topics_count * sizeof(evmc::bytes32));
         for(auto& t : topics_vec) {
-            ss << evmc::hex(t.bytes);
+            ss << to_hex(t) << "\n";
         }
         auto data_bytes = evmc::bytes(data, data_size);
-        m_log->debug("EVM:",
-                     evmc::hex(addr.bytes),
-                     evmc::hex(data_bytes),
-                     ss.str());
+        m_log->debug("EVM:", to_hex(addr), evmc::hex(data_bytes), ss.str());
     }
 
     auto evm_host::access_account(const evmc::address& addr) noexcept
