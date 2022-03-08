@@ -9,6 +9,7 @@
 #include "3pc/agent/interface.hpp"
 #include "3pc/broker/interface.hpp"
 #include "3pc/runtime_locking_shard/interface.hpp"
+#include "3pc/util.hpp"
 #include "util/common/logging.hpp"
 
 #include <memory>
@@ -59,6 +60,7 @@ namespace cbdc::threepc::agent::runner {
 
         using factory_type = std::function<std::unique_ptr<interface>(
             std::shared_ptr<logging::log> logger,
+            const cbdc::threepc::config& cfg,
             runtime_locking_shard::value_type function,
             parameter_type param,
             runner::interface::run_callback_type result_callback,
@@ -66,6 +68,7 @@ namespace cbdc::threepc::agent::runner {
 
         /// Constructor.
         /// \param logger log instance.
+        /// \param cfg config reference.
         /// \param function key of function bytecode to execute.
         /// \param param parameter to pass to function.
         /// \param result_callback function to call with function execution
@@ -73,6 +76,7 @@ namespace cbdc::threepc::agent::runner {
         /// \param try_lock_callback function to call for the function to
         ///                          request key locks.
         interface(std::shared_ptr<logging::log> logger,
+                  const cbdc::threepc::config& cfg,
                   runtime_locking_shard::value_type function,
                   parameter_type param,
                   run_callback_type result_callback,
@@ -95,6 +99,7 @@ namespace cbdc::threepc::agent::runner {
 
       private:
         std::shared_ptr<logging::log> m_log;
+        const cbdc::threepc::config& m_cfg;
         runtime_locking_shard::value_type m_function;
         parameter_type m_param;
         run_callback_type m_result_callback;
@@ -106,12 +111,14 @@ namespace cbdc::threepc::agent::runner {
       public:
         static auto
         create(std::shared_ptr<logging::log> logger,
+               cbdc::threepc::config cfg,
                runtime_locking_shard::value_type function,
                parameter_type param,
                runner::interface::run_callback_type result_callback,
                runner::interface::try_lock_callback_type try_lock_callback)
             -> std::unique_ptr<runner::interface> {
             return std::make_unique<T>(std::move(logger),
+                                       std::move(cfg),
                                        std::move(function),
                                        std::move(param),
                                        std::move(result_callback),

@@ -57,6 +57,7 @@ namespace cbdc::threepc::agent {
 
         /// Constructor.
         /// \param logger log instance.
+        /// \param cfg config instance.
         /// \param runner_factory function which constructs and returns a
         ///                       pointer to a runner instance.
         /// \param broker broker instance.
@@ -67,6 +68,7 @@ namespace cbdc::threepc::agent {
         /// \param initial_lock_type type of lock to acquire on initial
         ///                          function code.
         impl(std::shared_ptr<logging::log> logger,
+             cbdc::threepc::config cfg,
              runner::interface::factory_type runner_factory,
              std::shared_ptr<broker::interface> broker,
              runtime_locking_shard::key_type function,
@@ -98,6 +100,7 @@ namespace cbdc::threepc::agent {
 
       private:
         std::shared_ptr<logging::log> m_log;
+        const cbdc::threepc::config m_cfg;
         runner::interface::factory_type m_runner_factory;
         std::shared_ptr<broker::interface> m_broker;
         std::optional<ticket_machine::ticket_number_type> m_ticket_number;

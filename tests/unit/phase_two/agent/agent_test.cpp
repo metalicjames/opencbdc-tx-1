@@ -40,6 +40,7 @@ class agent_test : public ::testing::Test {
 
     std::shared_ptr<cbdc::logging::log> m_log{
         std::make_shared<cbdc::logging::log>(cbdc::logging::log_level::trace)};
+    cbdc::threepc::config m_cfg{};
     std::shared_ptr<cbdc::threepc::runtime_locking_shard::interface> m_shard0{
         std::make_shared<cbdc::threepc::runtime_locking_shard::impl>(m_log)};
     std::shared_ptr<cbdc::threepc::runtime_locking_shard::interface> m_shard1{
@@ -79,6 +80,7 @@ TEST_F(agent_test, deploy_test) {
 
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
@@ -102,6 +104,7 @@ TEST_F(agent_test, rollback_test) {
     auto callback_called = false;
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
@@ -146,6 +149,7 @@ TEST_F(agent_test, wound_deploy_test) {
     auto agent1_complete = false;
     auto agent0 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,
@@ -163,6 +167,7 @@ TEST_F(agent_test, wound_deploy_test) {
         cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
     auto agent1 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::lua_runner>::create,
         broker1,

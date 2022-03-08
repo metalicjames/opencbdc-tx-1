@@ -7,6 +7,8 @@
 
 #include "crypto/sha256.h"
 #include "format.hpp"
+#include "hash.hpp"
+#include "rlp.hpp"
 #include "util/common/hash.hpp"
 #include "util/serialization/util.hpp"
 
@@ -32,5 +34,39 @@ namespace cbdc::threepc::agent::runner {
         auto ret = cbdc::buffer();
         ret.append(h.data(), h.size());
         return ret;
+    }
+
+    auto contract_address(const evmc::address& sender,
+                          const evmc::uint256be& nonce) -> evmc::address {
+        auto new_addr = evmc::address();
+        auto buf = make_buffer(make_rlp_array(make_rlp_value(sender),
+                                              make_rlp_value(nonce, true)));
+        auto addr_hash = keccak_data(buf.data(), buf.size());
+        constexpr auto addr_offset = addr_hash.size() - sizeof(new_addr.bytes);
+        std::memcpy(new_addr.bytes,
+                    addr_hash.data() + addr_offset,
+                    sizeof(new_addr.bytes));
+        return new_addr;
+    }
+
+    auto contract_address2(const evmc::address& sender,
+                           const evmc::bytes32& salt,
+                           const cbdc::hash_t& bytecode_hash)
+        -> evmc::address {
+        auto new_addr = evmc::address();
+        auto buf = cbdc::buffer();
+        static constexpr uint8_t contract_address2_preimage_prefix = 0xFF;
+        auto b = std::byte(contract_address2_preimage_prefix);
+        buf.append(&b, sizeof(b));
+        buf.append(sender.bytes, sizeof(sender.bytes));
+        buf.append(salt.bytes, sizeof(salt.bytes));
+        buf.append(bytecode_hash.data(), bytecode_hash.size());
+
+        auto addr_hash = keccak_data(buf.data(), buf.size());
+        constexpr auto addr_offset = addr_hash.size() - sizeof(new_addr.bytes);
+        std::memcpy(new_addr.bytes,
+                    addr_hash.data() + addr_offset,
+                    sizeof(new_addr.bytes));
+        return new_addr;
     }
 }

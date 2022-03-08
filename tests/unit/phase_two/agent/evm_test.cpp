@@ -6,7 +6,10 @@
 #include "../util.hpp"
 #include "3pc/agent/impl.hpp"
 #include "3pc/agent/runners/evm/format.hpp"
+#include "3pc/agent/runners/evm/hash.hpp"
 #include "3pc/agent/runners/evm/impl.hpp"
+#include "3pc/agent/runners/evm/rlp.hpp"
+#include "3pc/agent/runners/evm/util.hpp"
 #include "3pc/broker/impl.hpp"
 #include "3pc/directory/impl.hpp"
 #include "3pc/runtime_locking_shard/impl.hpp"
@@ -44,10 +47,14 @@ class evm_test : public ::testing::Test {
         acc2.m_balance = evmc::uint256be(1000000);
         auto acc2_buf = cbdc::make_buffer(acc2);
         cbdc::test::add_to_shard(m_broker, m_addr2, acc2_buf);
+
+        // TODO: How do we make the tests succeed on Mac and Linux?
+        m_cfg.m_evm_library = "libevmone.so";
     }
 
     std::shared_ptr<cbdc::logging::log> m_log{
         std::make_shared<cbdc::logging::log>(cbdc::logging::log_level::trace)};
+    cbdc::threepc::config m_cfg{};
     std::shared_ptr<cbdc::threepc::runtime_locking_shard::interface> m_shard0{
         std::make_shared<cbdc::threepc::runtime_locking_shard::impl>(m_log)};
     std::shared_ptr<cbdc::threepc::ticket_machine::interface> m_ticketer{
@@ -83,6 +90,7 @@ TEST_F(evm_test, initial_test) {
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
@@ -189,6 +197,7 @@ TEST_F(evm_test, simple_send) {
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
@@ -213,6 +222,7 @@ TEST_F(evm_test, simple_send) {
     fut = prom.get_future();
     agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
@@ -315,6 +325,7 @@ TEST_F(evm_test, contract_deploy) {
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
@@ -349,6 +360,7 @@ TEST_F(evm_test, contract_deploy) {
     fut = prom.get_future();
     agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
@@ -363,4 +375,120 @@ TEST_F(evm_test, contract_deploy) {
     ASSERT_TRUE(agent->exec());
     res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
+}
+
+TEST_F(evm_test, rlp_serialize_length_test) {
+    auto buf = cbdc::buffer();
+    auto ser = cbdc::buffer_serializer(buf);
+    serialize_rlp_length(ser, 0, 0x80);
+    serialize_rlp_length(ser, 25, 0x80);
+    serialize_rlp_length(ser, 55, 0x80);
+    serialize_rlp_length(ser, 255, 0x80);
+    serialize_rlp_length(ser, 65535, 0x80);
+    auto expected = cbdc::buffer::from_hex("8099b7b8ffb9ffff").value();
+    ASSERT_EQ(expected, buf);
+}
+
+TEST_F(evm_test, rlp_serialize_buffer_test) {
+    auto dummy_addr
+        = cbdc::buffer::from_hex("f2fd57a860750107b19eff5a94ad4ce24e69da11")
+              .value();
+    auto dummy = evmc::address();
+    std::memcpy(dummy.bytes, dummy_addr.data(), dummy_addr.size());
+    auto rlp_val = cbdc::make_rlp_value(dummy);
+
+    auto buf = cbdc::buffer();
+    auto ser = cbdc::buffer_serializer(buf);
+    ser << rlp_val;
+
+    auto expected
+        = cbdc::buffer::from_hex("94f2fd57a860750107b19eff5a94ad4ce24e69da11")
+              .value();
+    ASSERT_EQ(expected, buf);
+}
+
+TEST_F(evm_test, keccak_test) {
+    auto hash_input = cbdc::buffer::from_hex("48656c6c6f20576f726c64").value();
+    auto result = cbdc::keccak_data(hash_input.data(), hash_input.size());
+    auto expected_hash
+        = cbdc::buffer::from_hex("592fa743889fc7f92ac2a37bb1f5ba1daf2a5c84741c"
+                                 "a0e0061d243a2e6707ba")
+              .value();
+    cbdc::hash_t expected;
+    std::memcpy(expected.data(), expected_hash.data(), expected_hash.size());
+    ASSERT_EQ(result, expected);
+}
+
+TEST_F(evm_test, rlp_serialize_array_test) {
+    auto dummy_addr
+        = cbdc::buffer::from_hex("fefd57a860750107b19eff5a94ad4ce24e69da11")
+              .value();
+    auto dummy = evmc::address();
+    std::memcpy(dummy.bytes, dummy_addr.data(), dummy_addr.size());
+    auto rlp_val = cbdc::make_rlp_value(dummy);
+    auto rlp_arr
+        = cbdc::make_rlp_array(rlp_val, rlp_val, rlp_val, rlp_val, rlp_val);
+
+    auto buf = cbdc::buffer();
+    auto ser = cbdc::buffer_serializer(buf);
+    ser << rlp_arr;
+
+    auto expected
+        = cbdc::buffer::from_hex(
+              "f86994fefd57a860750107b19eff5a94ad4ce24e69da1194fefd57a86075010"
+              "7b19eff5a94ad4ce24e69da1194fefd57a860750107b19eff5a94ad4ce24e69"
+              "da1194fefd57a860750107b19eff5a94ad4ce24e69da1194fefd57a86075010"
+              "7b19eff5a94ad4ce24e69da11")
+              .value();
+    ASSERT_EQ(expected, buf);
+}
+
+TEST_F(evm_test, contract_address_test) {
+    auto expected_addr
+        = cbdc::buffer::from_hex("bcfd57a860750107b19eff5a94ad4ce24e69da11")
+              .value();
+    auto expected = evmc::address();
+    std::memcpy(expected.bytes, expected_addr.data(), expected_addr.size());
+    auto sender_addr = evmc::address();
+    std::memcpy(sender_addr.bytes, m_addr1.data(), m_addr1.size());
+    ASSERT_EQ(
+        expected,
+        cbdc::threepc::agent::runner::contract_address(sender_addr,
+                                                       evmc::uint256be(1)));
+}
+
+/// Tests contract address for CREATE2 based on Example 5 from EIP-1014:
+/// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1014.md
+TEST_F(evm_test, contract_address2_test) {
+    auto contract_code = cbdc::buffer::from_hex(
+                             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+                             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+                             .value();
+
+    auto contract_code_hash
+        = cbdc::keccak_data(contract_code.data(), contract_code.size());
+
+    auto salt = cbdc::buffer::from_hex("00000000000000000000000000000000000000"
+                                       "000000000000000000cafebabe")
+                    .value();
+    auto sender
+        = cbdc::buffer::from_hex("00000000000000000000000000000000deadbeef")
+              .value();
+    auto sender_addr = evmc::address();
+    std::memcpy(sender_addr.bytes, sender.data(), sender.size());
+
+    auto salt_bytes = evmc::bytes32();
+    std::memcpy(salt_bytes.bytes, salt.data(), salt.size());
+
+    auto expected_addr
+        = cbdc::buffer::from_hex("1d8bfdc5d46dc4f61d6b6115972536ebe6a8854c")
+              .value();
+    auto expected = evmc::address();
+    std::memcpy(expected.bytes, expected_addr.data(), expected_addr.size());
+
+    ASSERT_EQ(
+        expected,
+        cbdc::threepc::agent::runner::contract_address2(sender_addr,
+                                                        salt_bytes,
+                                                        contract_code_hash));
 }

@@ -84,6 +84,7 @@ class account_test : public ::testing::Test {
 
     std::shared_ptr<cbdc::logging::log> m_log{
         std::make_shared<cbdc::logging::log>(cbdc::logging::log_level::trace)};
+    cbdc::threepc::config m_cfg{};
     std::shared_ptr<cbdc::threepc::runtime_locking_shard::interface> m_shard0{
         std::make_shared<cbdc::threepc::runtime_locking_shard::impl>(m_log)};
     std::shared_ptr<cbdc::threepc::runtime_locking_shard::interface> m_shard1{
@@ -180,6 +181,7 @@ TEST_F(account_test, pay_test) {
     auto complete = false;
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
+        m_cfg,
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::lua_runner>::create,
         m_broker,

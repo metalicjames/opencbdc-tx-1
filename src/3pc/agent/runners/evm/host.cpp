@@ -7,6 +7,8 @@
 
 #include "crypto/sha256.h"
 #include "format.hpp"
+#include "hash.hpp"
+#include "rlp.hpp"
 #include "util.hpp"
 
 #include <cassert>
@@ -213,18 +215,16 @@ namespace cbdc::threepc::agent::runner {
             assert(maybe_sender_acc.has_value());
             auto& sender_acc = maybe_sender_acc.value();
 
-            // TODO: make deployment address match Ethereum implementation
-            auto sha = CSHA256();
-            sha.Write(msg.sender.bytes, sizeof(msg.sender.bytes));
-            sha.Write(sender_acc.m_nonce.bytes,
-                      sizeof(sender_acc.m_nonce.bytes));
-            auto addr_hash = std::array<unsigned char, CSHA256::OUTPUT_SIZE>();
-            sha.Finalize(addr_hash.data());
-
             auto new_addr = evmc::address();
-            std::memcpy(new_addr.bytes,
-                        addr_hash.data(),
-                        sizeof(new_addr.bytes));
+            if(msg.kind == EVMC_CREATE) {
+                new_addr = contract_address(msg.sender, sender_acc.m_nonce);
+            } else {
+                auto bytecode_hash
+                    = cbdc::keccak_data(msg.input_data, msg.input_size);
+                new_addr = contract_address2(msg.sender,
+                                             msg.create2_salt,
+                                             bytecode_hash);
+            }
 
             // Transfer endowment to deployed contract account
             if(!evmc::is_zero(msg.value)) {

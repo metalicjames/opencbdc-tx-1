@@ -4,12 +4,15 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "3pc/agent/runners/lua/impl.hpp"
+#include "3pc/util.hpp"
 
 #include <gtest/gtest.h>
 
 TEST(agent_runner_test, rollback_test) {
     auto log = std::make_shared<cbdc::logging::log>(
         cbdc::logging::log_level::trace);
+
+    auto cfg = cbdc::threepc::config();
 
     static constexpr auto contract
         = "1b4c7561540019930d0a1a0a0408087856000000000000000000000028774001808"
@@ -51,6 +54,7 @@ TEST(agent_runner_test, rollback_test) {
 
     auto runner
         = cbdc::threepc::agent::runner::lua_runner(log,
+                                                   cfg,
                                                    std::move(func),
                                                    std::move(param),
                                                    std::move(result_cb),

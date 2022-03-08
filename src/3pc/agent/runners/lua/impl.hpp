@@ -7,6 +7,7 @@
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNER_H_
 
 #include "3pc/agent/runners/interface.hpp"
+#include "3pc/util.hpp"
 
 #include <lua.hpp>
 #include <memory>
@@ -21,6 +22,7 @@ namespace cbdc::threepc::agent::runner {
       public:
         /// \copydoc interface::interface()
         lua_runner(std::shared_ptr<logging::log> logger,
+                   const cbdc::threepc::config& cfg,
                    runtime_locking_shard::value_type function,
                    parameter_type param,
                    run_callback_type result_callback,

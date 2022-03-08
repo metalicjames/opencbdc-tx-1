@@ -29,9 +29,11 @@ namespace cbdc::threepc::agent::rpc {
         /// \param srv pointer to an asynchronous RPC server.
         /// \param broker broker instance.
         /// \param log log instance.
+        /// \param cfg system configuration options.
         server(std::unique_ptr<server_type> srv,
                std::shared_ptr<broker::interface> broker,
-               std::shared_ptr<logging::log> log);
+               std::shared_ptr<logging::log> log,
+               const cbdc::threepc::config& cfg);
 
         ~server();
 
@@ -44,6 +46,7 @@ namespace cbdc::threepc::agent::rpc {
         std::unique_ptr<server_type> m_srv;
         std::shared_ptr<broker::interface> m_broker;
         std::shared_ptr<logging::log> m_log;
+        const cbdc::threepc::config& m_cfg;
 
         mutable std::mutex m_agents_mut;
         std::atomic<size_t> m_next_id{};

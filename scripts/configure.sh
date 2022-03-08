@@ -95,9 +95,34 @@ wget https://raw.githubusercontent.com/llvm/llvm-project/e837ce2a32369b2e9e8e5d6
 
 wget https://github.com/ethereum/evmc/archive/eda05c6866ac06bd93d62b605cbec5839d85c221.zip
 unzip eda05c6866ac06bd93d62b605cbec5839d85c221.zip
+rm eda05c6866ac06bd93d62b605cbec5839d85c221.zip
 cd evmc-eda05c6866ac06bd93d62b605cbec5839d85c221
 mkdir build
 cd build
 cmake ..
 make
 make install
+cd ../..
+
+wget https://github.com/ethereum/evmone/archive/be870917e8cefd2b125bd27375dd9d2409ff1f68.zip
+unzip be870917e8cefd2b125bd27375dd9d2409ff1f68.zip
+rm be870917e8cefd2b125bd27375dd9d2409ff1f68.zip
+cd evmone-be870917e8cefd2b125bd27375dd9d2409ff1f68
+rm -rf evmc
+mv ../evmc-eda05c6866ac06bd93d62b605cbec5839d85c221 ./evmc
+mkdir ./evmc/.git
+cmake -S . -B build
+cmake --build build --parallel
+cp ./build/lib/libevmone.* /usr/local/lib
+cd ..
+rm -rf evmone-be870917e8cefd2b125bd27375dd9d2409ff1f68
+
+wget https://github.com/chfast/ethash/archive/e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
+unzip e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
+cd ethash-e3e002ecc25ca699349aa62fa38e7b7cc5f653af
+mkdir build
+cd build
+cmake -DETHASH_BUILD_ETHASH=OFF -DETHASH_BUILD_TESTS=OFF ..
+cmake --build . --parallel
+cp ./lib/keccak/libkeccak.a /usr/local/lib
+cp -r ../include/ethash /usr/local/include

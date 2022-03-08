@@ -13,11 +13,13 @@
 
 namespace cbdc::threepc::agent::runner {
     evm_runner::evm_runner(std::shared_ptr<logging::log> logger,
+                           const cbdc::threepc::config& cfg,
                            runtime_locking_shard::value_type function,
                            parameter_type param,
                            run_callback_type result_callback,
                            try_lock_callback_type try_lock_callback)
         : interface(std::move(logger),
+                    cfg,
                     std::move(function),
                     std::move(param),
                     std::move(result_callback),
@@ -30,6 +32,12 @@ namespace cbdc::threepc::agent::runner {
     }
 
     auto evm_runner::run() -> bool {
+        if(!m_cfg.m_evm_library.has_value()) {
+            m_log->fatal("EVM library is not configured");
+            return false;
+        }
+        auto evm_library = m_cfg.m_evm_library.value();
+
         auto maybe_from_acc = from_buffer<evm_account>(m_function);
         if(!maybe_from_acc.has_value()) {
             m_log->error("Unable to deserialize account");
@@ -94,13 +102,13 @@ namespace cbdc::threepc::agent::runner {
         tx_ctx.tx_origin = tx->m_from;
         tx_ctx.tx_gas_price = tx->m_gas_price;
 
-        const auto* config_string = "libevmone.dylib";
         auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
 
         m_vm = std::make_shared<evmc::VM>(
-            evmc_load_and_configure(config_string, &load_error));
+            evmc_load_and_configure(evm_library.c_str(), &load_error));
         if(!(*m_vm)) {
-            m_log->error("Unable to load EVM implementation");
+            m_log->error("Unable to load EVM implementation: Err=",
+                         load_error);
             return false;
         }
 
@@ -145,6 +153,7 @@ namespace cbdc::threepc::agent::runner {
 
     void evm_runner::exec(const evmc_message& msg,
                           const std::shared_ptr<evm_host>& host) {
+        m_log->trace(this, "Started evm_runner exec");
         auto result = host->call(msg);
         if(result.status_code < 0) {
             m_log->error("Internal error running EVM contract",

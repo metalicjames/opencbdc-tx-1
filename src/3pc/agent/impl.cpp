@@ -9,6 +9,7 @@
 
 namespace cbdc::threepc::agent {
     impl::impl(std::shared_ptr<logging::log> logger,
+               cbdc::threepc::config cfg,
                runner::interface::factory_type runner_factory,
                std::shared_ptr<broker::interface> broker,
                runtime_locking_shard::key_type function,
@@ -19,6 +20,7 @@ namespace cbdc::threepc::agent {
                     std::move(param),
                     std::move(result_callback)),
           m_log(std::move(logger)),
+          m_cfg(std::move(cfg)),
           m_runner_factory(std::move(runner_factory)),
           m_broker(std::move(broker)),
           m_initial_lock_type(initial_lock_type) {}
@@ -188,6 +190,7 @@ namespace cbdc::threepc::agent {
                     m_state = state::function_started;
                     m_runner = m_runner_factory(
                         m_log,
+                        m_cfg,
                         std::move(v),
                         get_param(),
                         [this](const runner::interface::run_return_type&

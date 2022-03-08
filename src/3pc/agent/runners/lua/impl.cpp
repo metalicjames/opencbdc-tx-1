@@ -21,11 +21,13 @@ namespace cbdc::threepc::agent::runner {
             &secp256k1_context_destroy);
 
     lua_runner::lua_runner(std::shared_ptr<logging::log> logger,
+                           const cbdc::threepc::config& cfg,
                            runtime_locking_shard::value_type function,
                            parameter_type param,
                            run_callback_type result_callback,
                            try_lock_callback_type try_lock_callback)
         : interface(std::move(logger),
+                    cfg,
                     std::move(function),
                     std::move(param),
                     std::move(result_callback),

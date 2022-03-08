@@ -7,6 +7,7 @@
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_EVM_RUNNER_H_
 
 #include "3pc/agent/runners/interface.hpp"
+#include "3pc/util.hpp"
 #include "host.hpp"
 
 #include <evmc/evmc.h>
@@ -16,6 +17,7 @@ namespace cbdc::threepc::agent::runner {
     class evm_runner : public interface {
       public:
         evm_runner(std::shared_ptr<logging::log> logger,
+                   const cbdc::threepc::config& cfg,
                    runtime_locking_shard::value_type function,
                    parameter_type param,
                    run_callback_type result_callback,

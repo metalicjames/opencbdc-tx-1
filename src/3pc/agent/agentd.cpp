@@ -104,7 +104,8 @@ auto main(int argc, char** argv) -> int {
     auto server = std::make_shared<cbdc::threepc::agent::rpc::server>(
         std::move(rpc_server),
         broker,
-        log);
+        log,
+        cfg.value());
 
     static auto running = std::atomic_bool{true};
 

@@ -14,10 +14,12 @@
 namespace cbdc::threepc::agent::rpc {
     server::server(std::unique_ptr<server_type> srv,
                    std::shared_ptr<broker::interface> broker,
-                   std::shared_ptr<logging::log> log)
+                   std::shared_ptr<logging::log> log,
+                   const cbdc::threepc::config& cfg)
         : m_srv(std::move(srv)),
           m_broker(std::move(broker)),
-          m_log(std::move(log)) {
+          m_log(std::move(log)),
+          m_cfg(cfg) {
         m_srv->register_handler_callback(
             [&](request req, server_type::response_callback_type callback) {
                 return request_handler(std::move(req), std::move(callback));
@@ -64,6 +66,7 @@ namespace cbdc::threepc::agent::rpc {
         auto a = [&]() {
             auto agent = std::make_shared<impl>(
                 m_log,
+                m_cfg,
                 &runner::factory<runner::evm_runner>::create,
                 m_broker,
                 req.m_function,
