@@ -123,7 +123,8 @@ TEST_F(evm_test, host_storage) {
             return true;
         },
         tx_ctx,
-        nullptr);
+        nullptr,
+        {});
     ASSERT_EQ(host.set_storage(addr3, val2, val2), EVMC_STORAGE_ADDED);
     ASSERT_FALSE(host.should_retry());
     m = host.get_state_updates();
@@ -137,7 +138,8 @@ TEST_F(evm_test, host_storage) {
             return true;
         },
         tx_ctx,
-        nullptr);
+        nullptr,
+        {});
     const auto& chost = host;
 
     // Null bytes returned for non-existing accounts.

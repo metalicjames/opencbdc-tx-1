@@ -6,6 +6,9 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNERS_EVM_UTIL_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_RUNNERS_EVM_UTIL_H_
 
+#include "messages.hpp"
+#include "util/common/buffer.hpp"
+
 #include <evmc/evmc.hpp>
 #include <evmc/hex.hpp>
 
@@ -16,6 +19,8 @@ namespace cbdc::threepc::agent::runner {
     auto to_hex(const T& v) -> std::string {
         return evmc::hex(evmc::bytes(v.bytes, sizeof(v.bytes)));
     }
+
+    auto tx_id(const evm_tx& tx) -> cbdc::buffer;
 }
 
 #endif

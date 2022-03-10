@@ -53,4 +53,25 @@ namespace cbdc {
         return deser >> tx.m_from >> tx.m_to >> tx.m_value >> tx.m_nonce
             >> tx.m_gas_price >> tx.m_gas_limit >> tx.m_input;
     }
+
+    auto operator<<(serializer& ser, const threepc::agent::runner::evm_log& l)
+        -> serializer& {
+        return ser << l.m_addr << l.m_data << l.m_topics;
+    }
+
+    auto operator>>(serializer& deser, threepc::agent::runner::evm_log& l)
+        -> serializer& {
+        return deser >> l.m_addr >> l.m_data >> l.m_topics;
+    }
+
+    auto operator<<(serializer& ser,
+                    const threepc::agent::runner::evm_tx_receipt& r)
+        -> serializer& {
+        return ser << r.m_from << r.m_to << r.m_gas_used << r.m_logs;
+    }
+
+    auto operator>>(serializer& deser,
+                    threepc::agent::runner::evm_tx_receipt& r) -> serializer& {
+        return deser >> r.m_from >> r.m_to >> r.m_gas_used >> r.m_logs;
+    }
 }

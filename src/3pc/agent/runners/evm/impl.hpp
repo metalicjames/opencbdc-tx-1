@@ -35,6 +35,7 @@ namespace cbdc::threepc::agent::runner {
       private:
         std::shared_ptr<evmc::VM> m_vm;
         std::thread m_evm_thread;
+        uint64_t m_gas_limit{};
 
         void exec(const evmc_message& msg,
                   const std::shared_ptr<evm_host>& host);

@@ -20,7 +20,8 @@ namespace cbdc::threepc::agent::runner {
         evm_host(std::shared_ptr<logging::log> log,
                  interface::try_lock_callback_type try_lock_callback,
                  evmc_tx_context tx_context,
-                 std::shared_ptr<evmc::VM> vm);
+                 std::shared_ptr<evmc::VM> vm,
+                 evm_tx tx);
 
         [[nodiscard]] auto
         account_exists(const evmc::address& addr) const noexcept -> bool final;
@@ -84,9 +85,11 @@ namespace cbdc::threepc::agent::runner {
 
         void insert_account(const evmc::address& addr, const evm_account& acc);
 
-        void finalize(int64_t gas_left);
+        void finalize(int64_t gas_left, int64_t gas_used);
 
         void revert();
+
+        auto get_tx_receipt() const -> evm_tx_receipt;
 
       private:
         std::shared_ptr<logging::log> m_log;
@@ -94,6 +97,7 @@ namespace cbdc::threepc::agent::runner {
         mutable std::map<evmc::address, evm_account> m_accounts;
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;
+        evm_tx m_tx;
 
         mutable std::set<evmc::address> m_accessed_addresses;
         std::set<std::pair<evmc::address, evmc::bytes32>>
@@ -102,6 +106,9 @@ namespace cbdc::threepc::agent::runner {
         mutable bool m_retry{false};
 
         std::map<evmc::address, evm_account> m_init_state;
+
+        evm_tx_receipt m_receipt;
+        cbdc::buffer m_tx_id;
 
         [[nodiscard]] auto get_account(const evmc::address& addr) const
             -> std::optional<evm_account>;

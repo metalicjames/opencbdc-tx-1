@@ -53,7 +53,7 @@ namespace cbdc::threepc::agent::runner {
             return true;
         }
 
-        auto gas_limit = to_uint64(tx->m_gas_limit);
+        m_gas_limit = to_uint64(tx->m_gas_limit);
 
         constexpr uint64_t base_gas = 21000;
         constexpr uint64_t creation_gas = 32000;
@@ -63,7 +63,7 @@ namespace cbdc::threepc::agent::runner {
             min_gas += creation_gas;
         }
 
-        if(gas_limit < min_gas) {
+        if(m_gas_limit < min_gas) {
             m_log->trace("TX does not have enough base gas");
             m_result_callback(error_code::exec_error);
             return true;
@@ -73,7 +73,7 @@ namespace cbdc::threepc::agent::runner {
         auto value = to_uint64(tx->m_value);
         auto balance = to_uint64(from_acc.m_balance);
 
-        auto total_gas_cost = gas_limit * gas_price;
+        auto total_gas_cost = m_gas_limit * gas_price;
 
         auto required_funds = value + total_gas_cost;
         if(balance < required_funds) {
@@ -90,7 +90,7 @@ namespace cbdc::threepc::agent::runner {
         auto timestamp
             = std::chrono::time_point_cast<std::chrono::seconds>(now);
         tx_ctx.block_timestamp = timestamp.time_since_epoch().count();
-        tx_ctx.block_gas_limit = static_cast<int64_t>(gas_limit);
+        tx_ctx.block_gas_limit = static_cast<int64_t>(m_gas_limit);
         tx_ctx.tx_origin = tx->m_from;
         tx_ctx.tx_gas_price = tx->m_gas_price;
 
@@ -107,7 +107,8 @@ namespace cbdc::threepc::agent::runner {
         auto host = std::make_shared<evm_host>(m_log,
                                                m_try_lock_callback,
                                                tx_ctx,
-                                               m_vm);
+                                               m_vm,
+                                               *tx);
 
         // Deduct gas
         auto new_bal = balance - total_gas_cost;
@@ -122,7 +123,7 @@ namespace cbdc::threepc::agent::runner {
         msg.value = tx->m_value;
         msg.input_data = tx->m_input.data();
         msg.input_size = tx->m_input.size();
-        msg.gas = static_cast<int64_t>(gas_limit - min_gas);
+        msg.gas = static_cast<int64_t>(m_gas_limit - min_gas);
         msg.depth = 0;
 
         // Determine transaction type
@@ -156,7 +157,9 @@ namespace cbdc::threepc::agent::runner {
             if(result.status_code == EVMC_REVERT) {
                 host->revert();
             }
-            host->finalize(result.gas_left);
+            auto gas_used
+                = static_cast<int64_t>(m_gas_limit) - result.gas_left;
+            host->finalize(result.gas_left, gas_used);
             auto state_updates = host->get_state_updates();
             m_result_callback(state_updates);
         }

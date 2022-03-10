@@ -17,11 +17,13 @@ namespace cbdc::threepc::agent::runner {
     evm_host::evm_host(std::shared_ptr<logging::log> log,
                        interface::try_lock_callback_type try_lock_callback,
                        evmc_tx_context tx_context,
-                       std::shared_ptr<evmc::VM> vm)
+                       std::shared_ptr<evmc::VM> vm,
+                       evm_tx tx)
         : m_log(std::move(log)),
           m_try_lock_callback(std::move(try_lock_callback)),
           m_tx_context(tx_context),
-          m_vm(std::move(vm)) {}
+          m_vm(std::move(vm)),
+          m_tx(std::move(tx)) {}
 
     auto evm_host::get_account(const evmc::address& addr) const
         -> std::optional<evm_account> {
@@ -266,6 +268,10 @@ namespace cbdc::threepc::agent::runner {
             transfer(msg.sender, msg.recipient, msg.value);
         }
 
+        if(msg.depth == 0) {
+            m_receipt.m_to = msg.recipient;
+        }
+
         auto code_addr
             = msg.kind == EVMC_DELEGATECALL || msg.kind == EVMC_CALLCODE
                 ? msg.code_address
@@ -312,16 +318,15 @@ namespace cbdc::threepc::agent::runner {
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
         const evmc::bytes32 topics[],
         size_t topics_count) noexcept {
-        std::stringstream ss;
-        auto topics_vec = std::vector<evmc::bytes32>(topics_count);
-        std::memcpy(topics_vec.data(),
-                    topics,
-                    topics_count * sizeof(evmc::bytes32));
-        for(auto& t : topics_vec) {
-            ss << to_hex(t) << "\n";
+        auto l = evm_log();
+        l.m_addr = addr;
+        l.m_data.resize(data_size);
+        std::memcpy(l.m_data.data(), data, data_size);
+        for(size_t i = 0; i < topics_count; i++) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+            l.m_topics.push_back(topics[i]);
         }
-        auto data_bytes = evmc::bytes(data, data_size);
-        m_log->debug("EVM:", to_hex(addr), evmc::hex(data_bytes), ss.str());
+        m_receipt.m_logs.push_back(l);
     }
 
     auto evm_host::access_account(const evmc::address& addr) noexcept
@@ -356,6 +361,9 @@ namespace cbdc::threepc::agent::runner {
             }
             ret[key] = val;
         }
+        auto tid = tx_id(m_tx);
+        auto r = make_buffer(m_receipt);
+        ret[tid] = r;
         return ret;
     }
 
@@ -403,7 +411,7 @@ namespace cbdc::threepc::agent::runner {
         m_accounts[to] = to_acc;
     }
 
-    void evm_host::finalize(int64_t gas_left) {
+    void evm_host::finalize(int64_t gas_left, int64_t gas_used) {
         auto maybe_acc = get_account(m_tx_context.tx_origin);
         assert(maybe_acc.has_value());
         auto& acc = maybe_acc.value();
@@ -411,9 +419,16 @@ namespace cbdc::threepc::agent::runner {
         auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
         acc.m_balance = evmc::uint256be(new_bal);
         m_accounts[m_tx_context.tx_origin] = acc;
+        m_receipt.m_gas_used
+            = evmc::uint256be(static_cast<uint64_t>(gas_used));
+        m_receipt.m_from = m_tx_context.tx_origin;
     }
 
     void evm_host::revert() {
         m_accounts = m_init_state;
+    }
+
+    auto evm_host::get_tx_receipt() const -> evm_tx_receipt {
+        return m_receipt;
     }
 }
