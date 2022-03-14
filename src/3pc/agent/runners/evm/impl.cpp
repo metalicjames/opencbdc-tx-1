@@ -9,7 +9,7 @@
 #include "host.hpp"
 #include "util.hpp"
 
-#include <evmc/loader.h>
+#include <evmone/evmone.h>
 
 namespace cbdc::threepc::agent::runner {
     evm_runner::evm_runner(std::shared_ptr<logging::log> logger,
@@ -32,12 +32,6 @@ namespace cbdc::threepc::agent::runner {
     }
 
     auto evm_runner::run() -> bool {
-        if(!m_cfg.m_evm_library.has_value()) {
-            m_log->fatal("EVM library is not configured");
-            return false;
-        }
-        auto evm_library = m_cfg.m_evm_library.value();
-
         auto maybe_from_acc = from_buffer<evm_account>(m_function);
         if(!maybe_from_acc.has_value()) {
             m_log->error("Unable to deserialize account");
@@ -102,13 +96,9 @@ namespace cbdc::threepc::agent::runner {
         tx_ctx.tx_origin = tx->m_from;
         tx_ctx.tx_gas_price = tx->m_gas_price;
 
-        auto load_error = EVMC_LOADER_UNSPECIFIED_ERROR;
-
-        m_vm = std::make_shared<evmc::VM>(
-            evmc_load_and_configure(evm_library.c_str(), &load_error));
+        m_vm = std::make_shared<evmc::VM>(evmc_create_evmone());
         if(!(*m_vm)) {
-            m_log->error("Unable to load EVM implementation: Err=",
-                         load_error);
+            m_log->error("Unable to load EVM implementation");
             return false;
         }
 

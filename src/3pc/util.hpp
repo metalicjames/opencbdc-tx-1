@@ -22,11 +22,6 @@ namespace cbdc::threepc {
         /// ID of the node within the component the instance should be, if
         /// applicable.
         std::optional<size_t> m_node_id;
-        /// The dynamic library to load for the EVM implementation. When using
-        /// evmone, this would be "libevmone.so" for Linux, "libevmone.dylib"
-        /// for Mac and "evmone.dll" for Windows - assuming they are in the
-        /// path
-        std::optional<std::string> m_evm_library;
     };
 
     /// Reads the configuration parameters from the program arguments.

@@ -47,9 +47,6 @@ class evm_test : public ::testing::Test {
         acc2.m_balance = evmc::uint256be(1000000);
         auto acc2_buf = cbdc::make_buffer(acc2);
         cbdc::test::add_to_shard(m_broker, m_addr2, acc2_buf);
-
-        // TODO: How do we make the tests succeed on Mac and Linux?
-        m_cfg.m_evm_library = "libevmone.so";
     }
 
     std::shared_ptr<cbdc::logging::log> m_log{

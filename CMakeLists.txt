@@ -32,6 +32,10 @@ endif()
 find_library(LEVELDB_LIBRARY leveldb REQUIRED)
 find_library(NURAFT_LIBRARY nuraft REQUIRED)
 find_library(LUA_LIBRARY lua REQUIRED)
+find_library(KECCAK_LIBRARY keccak REQUIRED)
+find_library(EVMC_HEX_LIBRARY hex REQUIRED)
+find_library(EVMONE_LIBRARY evmone REQUIRED)
+
 set(LUA_LIBRARY "${LUA_LIBRARY}" "-ldl")
 
 message("Disabling Run Time Type Information (RTTI) features.")

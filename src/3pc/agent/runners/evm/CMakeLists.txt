@@ -1,7 +1,5 @@
 project(evm_runner)
 
-find_library(KECCAK_LIBRARY keccak REQUIRED)
-
 add_library(evm_runner impl.cpp
                        hash.cpp
                        host.cpp
@@ -10,4 +8,6 @@ add_library(evm_runner impl.cpp
                        rlp_writer.cpp
                        util.cpp)
 
-target_link_libraries(evm_runner ${KECCAK_LIBRARY})
+target_link_libraries(evm_runner ${KECCAK_LIBRARY}
+                                 ${EVMC_HEX_LIBRARY}
+                                 ${EVMONE_LIBRARY})

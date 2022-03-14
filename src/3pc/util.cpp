@@ -118,12 +118,6 @@ namespace cbdc::threepc {
             cfg.m_node_id = std::stoull(it->second);
         }
 
-        constexpr auto evm_library_key = "evm_library";
-        it = opts->find(evm_library_key);
-        if(it != opts->end()) {
-            cfg.m_evm_library = it->second;
-        }
-
         auto ticket_machine_endpoints
             = read_endpoints(opts.value(), "ticket_machine");
         if(!ticket_machine_endpoints.has_value()) {

@@ -7,7 +7,6 @@ add_library(agent impl.cpp
                   format.cpp)
 
 add_executable(agentd agentd.cpp)
-target_link_options(agentd PRIVATE -L/usr/local/lib)
 target_link_libraries(agentd agent
                              broker
                              directory
@@ -22,8 +21,6 @@ target_link_libraries(agentd agent
                              common
                              crypto
                              secp256k1
-                             evmc-loader
-                             hex
                              ${LUA_LIBRARY}
                              ${CMAKE_THREAD_LIBS_INIT})
 

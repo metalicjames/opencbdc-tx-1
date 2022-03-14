@@ -113,8 +113,9 @@ mv ../evmc-eda05c6866ac06bd93d62b605cbec5839d85c221 ./evmc
 mkdir ./evmc/.git
 cmake -S . -B build
 cmake --build build --parallel
-cp ./build/lib/libevmone.* /usr/local/lib
-cd ..
+cd build
+make install
+cd ../..
 rm -rf evmone-be870917e8cefd2b125bd27375dd9d2409ff1f68
 
 wget https://github.com/chfast/ethash/archive/e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
