@@ -231,6 +231,10 @@ namespace cbdc::threepc::agent::runner {
                 transfer(msg.sender, new_addr, msg.value);
             }
 
+            if(msg.depth == 0) {
+                m_receipt.m_to = new_addr;
+            }
+
             auto call_msg = evmc_message();
             call_msg.depth = msg.depth;
             call_msg.sender = msg.sender;

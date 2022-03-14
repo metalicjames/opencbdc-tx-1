@@ -247,65 +247,61 @@ TEST_F(evm_test, contract_deploy) {
               "79055508173ffffffffffffffffffffffffffffffffffffffff168173ffffff"
               "ffffffffffffffffffffffffffffffffff167f8be0079c531659141344cd1fd"
               "0a4f28419497f9722a3daafe3b4186f6b6457e060405160405180910390a350"
-              "50565b61072e8061010d6000396000f3fe60806040523480156100105760008"
+              "50565b6106958061010d6000396000f3fe60806040523480156100105760008"
               "0fd5b50600436106100575760003560e01c80632e64cec11461005c57806360"
               "57361d1461007a578063715018a6146100965780638da5cb5b146100a057806"
               "3f2fde38b146100be575b600080fd5b6100646100da565b6040516100719190"
-              "610565565b60405180910390f35b610094600480360381019061008f9190610"
-              "47d565b6100e4565b005b61009e6101b5565b005b6100a861023d565b604051"
-              "6100b5919061050a565b60405180910390f35b6100d86004803603810190610"
-              "0d39190610454565b610266565b005b6000600154905090565b6100ec61035e"
-              "565b73ffffffffffffffffffffffffffffffffffffffff1661010a61023d565"
+              "610551565b60405180910390f35b610094600480360381019061008f9190610"
+              "469565b6100e4565b005b61009e6101a1565b005b6100a8610229565b604051"
+              "6100b591906104f6565b60405180910390f35b6100d86004803603810190610"
+              "0d39190610440565b610252565b005b6000600154905090565b6100ec61034a"
+              "565b73ffffffffffffffffffffffffffffffffffffffff1661010a610229565"
               "b73ffffffffffffffffffffffffffffffffffffffff1614610160576040517f"
               "08c379a00000000000000000000000000000000000000000000000000000000"
-              "0815260040161015790610545565b60405180910390fd5b8060016000828254"
-              "6101729190610591565b925050819055507f93fe6d397c74fdf1402a8b72e47"
-              "b68512f0510d7b98a4bc4cbdf6ac7108b3c596001546040516101aa91906105"
-              "65565b60405180910390a150565b6101bd61035e565b73fffffffffffffffff"
-              "fffffffffffffffffffffff166101db61023d565b73ffffffffffffffffffff"
-              "ffffffffffffffffffff1614610231576040517f08c379a0000000000000000"
-              "000000000000000000000000000000000000000008152600401610228906105"
-              "45565b60405180910390fd5b61023b6000610366565b565b600080600090549"
-              "06101000a900473ffffffffffffffffffffffffffffffffffffffff16905090"
-              "565b61026e61035e565b73ffffffffffffffffffffffffffffffffffffffff1"
-              "661028c61023d565b73ffffffffffffffffffffffffffffffffffffffff1614"
-              "6102e2576040517f08c379a0000000000000000000000000000000000000000"
-              "0000000000000000081526004016102d990610545565b60405180910390fd5b"
-              "600073ffffffffffffffffffffffffffffffffffffffff168173fffffffffff"
-              "fffffffffffffffffffffffffffff161415610352576040517f08c379a00000"
-              "000000000000000000000000000000000000000000000000000081526004016"
-              "1034990610525565b60405180910390fd5b61035b81610366565b50565b6000"
-              "33905090565b60008060009054906101000a900473fffffffffffffffffffff"
-              "fffffffffffffffffff169050816000806101000a81548173ffffffffffffff"
-              "ffffffffffffffffffffffffff021916908373fffffffffffffffffffffffff"
-              "fffffffffffffff1602179055508173ffffffffffffffffffffffffffffffff"
-              "ffffffff168173ffffffffffffffffffffffffffffffffffffffff167f8be00"
-              "79c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e06040"
-              "5160405180910390a35050565b600081359050610439816106ca565b9291505"
-              "0565b60008135905061044e816106e1565b92915050565b6000602082840312"
-              "1561046657600080fd5b60006104748482850161042a565b915050929150505"
-              "65b60006020828403121561048f57600080fd5b600061049d8482850161043f"
-              "565b91505092915050565b6104af816105e7565b82525050565b60006104c26"
-              "02683610580565b91506104cd82610652565b604082019050919050565b6000"
-              "6104e5602083610580565b91506104f0826106a1565b6020820190509190505"
-              "65b61050481610619565b82525050565b600060208201905061051f60008301"
-              "846104a6565b92915050565b6000602082019050818103600083015261053e8"
-              "16104b5565b9050919050565b6000602082019050818103600083015261055e"
-              "816104d8565b9050919050565b600060208201905061057a60008301846104f"
-              "b565b92915050565b600082825260208201905092915050565b600061059c82"
-              "610619565b91506105a783610619565b9250827ffffffffffffffffffffffff"
-              "fffffffffffffffffffffffffffffffffffffffff038211156105dc576105db"
-              "610623565b5b828201905092915050565b60006105f2826105f9565b9050919"
-              "050565b600073ffffffffffffffffffffffffffffffffffffffff8216905091"
-              "9050565b6000819050919050565b7f4e487b710000000000000000000000000"
-              "0000000000000000000000000000000600052601160045260246000fd5b7f4f"
-              "776e61626c653a206e6577206f776e657220697320746865207a65726f20616"
-              "0008201527f6464726573730000000000000000000000000000000000000000"
-              "000000000000602082015250565b7f4f776e61626c653a2063616c6c6572206"
-              "973206e6f7420746865206f776e6572600082015250565b6106d3816105e756"
-              "5b81146106de57600080fd5b50565b6106ea81610619565b81146106f557600"
-              "080fd5b5056fea2646970667358221220d0c3b60ee6083564db3ad5a89d12f5"
-              "c0563368ad3fdf8724972fc58f0927999864736f6c63430008040033")
+              "0815260040161015790610531565b60405180910390fd5b806001819055507f"
+              "93fe6d397c74fdf1402a8b72e47b68512f0510d7b98a4bc4cbdf6ac7108b3c5"
+              "9816040516101969190610551565b60405180910390a150565b6101a961034a"
+              "565b73ffffffffffffffffffffffffffffffffffffffff166101c7610229565"
+              "b73ffffffffffffffffffffffffffffffffffffffff161461021d576040517f"
+              "08c379a00000000000000000000000000000000000000000000000000000000"
+              "0815260040161021490610531565b60405180910390fd5b6102276000610352"
+              "565b565b60008060009054906101000a900473fffffffffffffffffffffffff"
+              "fffffffffffffff16905090565b61025a61034a565b73ffffffffffffffffff"
+              "ffffffffffffffffffffff16610278610229565b73fffffffffffffffffffff"
+              "fffffffffffffffffff16146102ce576040517f08c379a00000000000000000"
+              "000000000000000000000000000000000000000081526004016102c59061053"
+              "1565b60405180910390fd5b600073ffffffffffffffffffffffffffffffffff"
+              "ffffff168173ffffffffffffffffffffffffffffffffffffffff16141561033"
+              "e576040517f08c379a000000000000000000000000000000000000000000000"
+              "000000000000815260040161033590610511565b60405180910390fd5b61034"
+              "781610352565b50565b600033905090565b60008060009054906101000a9004"
+              "73ffffffffffffffffffffffffffffffffffffffff169050816000806101000"
+              "a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ff"
+              "ffffffffffffffffffffffffffffffffffffff1602179055508173fffffffff"
+              "fffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffff"
+              "ffffffffffffff167f8be0079c531659141344cd1fd0a4f28419497f9722a3d"
+              "aafe3b4186f6b6457e060405160405180910390a35050565b60008135905061"
+              "042581610631565b92915050565b60008135905061043a81610648565b92915"
+              "050565b60006020828403121561045257600080fd5b60006104608482850161"
+              "0416565b91505092915050565b60006020828403121561047b57600080fd5b6"
+              "0006104898482850161042b565b91505092915050565b61049b8161057d565b"
+              "82525050565b60006104ae60268361056c565b91506104b9826105b9565b604"
+              "082019050919050565b60006104d160208361056c565b91506104dc82610608"
+              "565b602082019050919050565b6104f0816105af565b82525050565b6000602"
+              "08201905061050b6000830184610492565b92915050565b6000602082019050"
+              "818103600083015261052a816104a1565b9050919050565b600060208201905"
+              "0818103600083015261054a816104c4565b9050919050565b60006020820190"
+              "5061056660008301846104e7565b92915050565b60008282526020820190509"
+              "2915050565b60006105888261058f565b9050919050565b600073ffffffffff"
+              "ffffffffffffffffffffffffffffff82169050919050565b600081905091905"
+              "0565b7f4f776e61626c653a206e6577206f776e657220697320746865207a65"
+              "726f206160008201527f6464726573730000000000000000000000000000000"
+              "000000000000000000000602082015250565b7f4f776e61626c653a2063616c"
+              "6c6572206973206e6f7420746865206f776e6572600082015250565b61063a8"
+              "161057d565b811461064557600080fd5b50565b610651816105af565b811461"
+              "065c57600080fd5b5056fea2646970667358221220d1d385c015549fffb510d"
+              "bf5df48c9f7404bfa5d2fc9bb7c0784d513dc5859c464736f6c634300080400"
+              "33")
               .value();
 
     auto tx = cbdc::threepc::agent::runner::evm_tx();
@@ -318,7 +314,9 @@ TEST_F(evm_test, contract_deploy) {
     std::memcpy(tx.m_input.data(), bytecode.data(), bytecode.size());
     auto params = cbdc::make_buffer(tx);
 
-    auto prom = std::promise<void>();
+    auto deploy_txid = cbdc::threepc::agent::runner::tx_id(tx);
+
+    auto prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
     auto fut = prom.get_future();
     auto agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
@@ -328,11 +326,18 @@ TEST_F(evm_test, contract_deploy) {
         m_broker,
         m_addr1,
         params,
-        [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
+        [&](cbdc::threepc::agent::interface::exec_return_type res) {
             ASSERT_TRUE(
                 std::holds_alternative<cbdc::threepc::agent::return_type>(
                     res));
-            prom.set_value();
+            auto& r = std::get<cbdc::threepc::agent::return_type>(res);
+            auto it = r.find(deploy_txid);
+            ASSERT_NE(it, r.end());
+            auto maybe_receipt = cbdc::from_buffer<
+                cbdc::threepc::agent::runner::evm_tx_receipt>(it->second);
+            ASSERT_TRUE(maybe_receipt.has_value());
+            auto& receipt = maybe_receipt.value();
+            prom.set_value(receipt);
         },
         cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
@@ -340,8 +345,15 @@ TEST_F(evm_test, contract_deploy) {
     ASSERT_EQ(res, std::future_status::ready);
 
     auto contract_addr
-        = cbdc::buffer::from_hex("72b10bc92b3a94ea79e79d34258aa76b66722ad1")
+        = cbdc::buffer::from_hex("bcfd57a860750107b19eff5a94ad4ce24e69da11")
               .value();
+
+    auto receipt = fut.get();
+    ASSERT_TRUE(receipt.m_to.has_value());
+    auto addr_buf = cbdc::buffer();
+    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    ASSERT_EQ(addr_buf, contract_addr);
+
     tx.m_to = evmc::address();
     std::memcpy(tx.m_to->bytes, contract_addr.data(), contract_addr.size());
     tx.m_nonce = evmc::uint256be(2);
@@ -353,7 +365,9 @@ TEST_F(evm_test, contract_deploy) {
     std::memcpy(tx.m_input.data(), store_input.data(), store_input.size());
     params = cbdc::make_buffer(tx);
 
-    prom = std::promise<void>();
+    auto store_txid = cbdc::threepc::agent::runner::tx_id(tx);
+
+    prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
     fut = prom.get_future();
     agent = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
@@ -363,15 +377,46 @@ TEST_F(evm_test, contract_deploy) {
         m_broker,
         m_addr1,
         params,
-        [&](const cbdc::threepc::agent::interface::exec_return_type& r) {
+        [&](cbdc::threepc::agent::interface::exec_return_type r) {
             ASSERT_TRUE(
                 std::holds_alternative<cbdc::threepc::agent::return_type>(r));
-            prom.set_value();
+            auto& ret = std::get<cbdc::threepc::agent::return_type>(r);
+            auto it = ret.find(store_txid);
+            ASSERT_NE(it, ret.end());
+            auto maybe_receipt = cbdc::from_buffer<
+                cbdc::threepc::agent::runner::evm_tx_receipt>(it->second);
+            ASSERT_TRUE(maybe_receipt.has_value());
+            auto& rec = maybe_receipt.value();
+            prom.set_value(rec);
         },
         cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
     ASSERT_TRUE(agent->exec());
     res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
+
+    receipt = fut.get();
+    ASSERT_TRUE(receipt.m_to.has_value());
+    addr_buf.clear();
+    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    ASSERT_EQ(addr_buf, contract_addr);
+
+    ASSERT_EQ(receipt.m_logs.size(), 1);
+    auto& l = receipt.m_logs[0];
+    auto exp_data = std::vector<uint8_t>();
+    exp_data.resize(32);
+    exp_data.back() = 42;
+    ASSERT_EQ(l.m_data, exp_data);
+
+    auto exp_topic = cbdc::buffer::from_hex("93fe6d397c74fdf1402a8b72e47b68512"
+                                            "f0510d7b98a4bc4cbdf6ac7108b3c59")
+                         .value();
+    auto exp_bytes = evmc::bytes32();
+    std::memcpy(exp_bytes.bytes, exp_topic.data(), exp_topic.size());
+    ASSERT_EQ(l.m_topics.size(), 1);
+    ASSERT_EQ(l.m_topics[0], exp_bytes);
+    auto exp_addr = evmc::address();
+    std::memcpy(exp_addr.bytes, contract_addr.data(), contract_addr.size());
+    ASSERT_EQ(l.m_addr, exp_addr);
 }
 
 TEST_F(evm_test, rlp_serialize_length_test) {
