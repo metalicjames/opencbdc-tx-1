@@ -37,6 +37,9 @@ CMakeCache.txt
 
 leveldb*/
 NuRaft*/
+lua-*/
+ethash-*/
+evmone-*/
 benchmark-results/
 CMakeFiles/
 plots/
