@@ -355,9 +355,10 @@ TEST_F(evm_test, contract_deploy) {
               .value();
 
     auto receipt = fut.get();
-    ASSERT_TRUE(receipt.m_to.has_value());
+    ASSERT_TRUE(receipt.m_create_address.has_value());
     auto addr_buf = cbdc::buffer();
-    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    addr_buf.append(receipt.m_create_address->bytes,
+                    sizeof(receipt.m_create_address->bytes));
     ASSERT_EQ(addr_buf, contract_addr);
 
     tx.m_to = evmc::address();
@@ -402,9 +403,10 @@ TEST_F(evm_test, contract_deploy) {
     ASSERT_EQ(res, std::future_status::ready);
 
     receipt = fut.get();
-    ASSERT_TRUE(receipt.m_to.has_value());
+    ASSERT_TRUE(receipt.m_tx.m_to.has_value());
     addr_buf.clear();
-    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    addr_buf.append(receipt.m_tx.m_to->bytes,
+                    sizeof(receipt.m_tx.m_to->bytes));
     ASSERT_EQ(addr_buf, contract_addr);
 
     ASSERT_EQ(receipt.m_logs.size(), 1);
@@ -466,9 +468,10 @@ TEST_F(evm_test, contract_deploy) {
     ASSERT_EQ(res, std::future_status::ready);
 
     receipt = fut.get();
-    ASSERT_TRUE(receipt.m_to.has_value());
+    ASSERT_TRUE(receipt.m_tx.m_to.has_value());
     addr_buf.clear();
-    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    addr_buf.append(receipt.m_tx.m_to->bytes,
+                    sizeof(receipt.m_tx.m_to->bytes));
     ASSERT_EQ(addr_buf, contract_addr);
 
     auto output = evmc::uint256be();

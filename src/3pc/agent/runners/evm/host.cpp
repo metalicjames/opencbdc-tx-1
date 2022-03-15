@@ -27,7 +27,9 @@ namespace cbdc::threepc::agent::runner {
           m_tx_context(tx_context),
           m_vm(std::move(vm)),
           m_tx(std::move(tx)),
-          m_dry_run(dry_run) {}
+          m_dry_run(dry_run) {
+        m_receipt.m_tx = m_tx;
+    }
 
     auto evm_host::get_account(const evmc::address& addr) const
         -> std::optional<evm_account> {
@@ -234,7 +236,7 @@ namespace cbdc::threepc::agent::runner {
             }
 
             if(msg.depth == 0) {
-                m_receipt.m_to = new_addr;
+                m_receipt.m_create_address = new_addr;
             }
 
             auto call_msg = evmc_message();
@@ -272,10 +274,6 @@ namespace cbdc::threepc::agent::runner {
         if(!evmc::is_zero(msg.value) && msg.kind == EVMC_CALL) {
             // TODO: do DELETEGATECALL and CALLCODE transfer value as well?
             transfer(msg.sender, msg.recipient, msg.value);
-        }
-
-        if(msg.depth == 0) {
-            m_receipt.m_to = msg.recipient;
         }
 
         auto code_addr
@@ -437,7 +435,6 @@ namespace cbdc::threepc::agent::runner {
         }
         m_receipt.m_gas_used
             = evmc::uint256be(static_cast<uint64_t>(gas_used));
-        m_receipt.m_from = m_tx_context.tx_origin;
     }
 
     void evm_host::revert() {

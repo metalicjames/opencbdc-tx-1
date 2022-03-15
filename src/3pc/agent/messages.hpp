@@ -16,7 +16,7 @@ namespace cbdc::threepc::agent::rpc {
         /// Function call parameter.
         parameter_type m_param;
         /// Whether the request should skip writing state changes.
-        bool m_dry_run;
+        bool m_dry_run{false};
     };
 
     /// Agent RPC request type.
