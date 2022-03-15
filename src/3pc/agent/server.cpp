@@ -83,7 +83,8 @@ namespace cbdc::threepc::agent::rpc {
                     callback(res);
                     m_cleanup_queue.push(id);
                 },
-                runner::evm_runner::initial_lock_type);
+                runner::evm_runner::initial_lock_type,
+                req.m_dry_run);
             {
                 std::unique_lock l(m_agents_mut);
                 m_agents.emplace(id, agent);

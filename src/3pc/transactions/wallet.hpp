@@ -84,6 +84,7 @@ namespace cbdc::threepc {
             -> cbdc::buffer;
 
         auto execute_params(cbdc::buffer params,
+                            bool dry_run,
                             const std::function<void(bool)>& result_callback)
             -> bool;
     };

@@ -15,6 +15,8 @@ namespace cbdc::threepc::agent::rpc {
         runtime_locking_shard::key_type m_function;
         /// Function call parameter.
         parameter_type m_param;
+        /// Whether the request should skip writing state changes.
+        bool m_dry_run;
     };
 
     /// Agent RPC request type.

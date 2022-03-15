@@ -10,11 +10,11 @@
 namespace cbdc {
     auto operator<<(serializer& ser, const threepc::agent::rpc::request& req)
         -> serializer& {
-        return ser << req.m_function << req.m_param;
+        return ser << req.m_function << req.m_param << req.m_dry_run;
     }
 
     auto operator>>(serializer& deser, threepc::agent::rpc::request& req)
         -> serializer& {
-        return deser >> req.m_function >> req.m_param;
+        return deser >> req.m_function >> req.m_param >> req.m_dry_run;
     }
 }

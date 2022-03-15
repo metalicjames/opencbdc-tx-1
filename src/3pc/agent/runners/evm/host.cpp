@@ -20,12 +20,14 @@ namespace cbdc::threepc::agent::runner {
                        interface::try_lock_callback_type try_lock_callback,
                        evmc_tx_context tx_context,
                        std::shared_ptr<evmc::VM> vm,
-                       evm_tx tx)
+                       evm_tx tx,
+                       bool dry_run)
         : m_log(std::move(log)),
           m_try_lock_callback(std::move(try_lock_callback)),
           m_tx_context(tx_context),
           m_vm(std::move(vm)),
-          m_tx(std::move(tx)) {}
+          m_tx(std::move(tx)),
+          m_dry_run(dry_run) {}
 
     auto evm_host::get_account(const evmc::address& addr) const
         -> std::optional<evm_account> {
@@ -301,6 +303,14 @@ namespace cbdc::threepc::agent::runner {
                                  msg,
                                  code_buf.data(),
                                  code_buf.size());
+
+        if(msg.depth == 0) {
+            m_receipt.m_output_data.resize(res.output_size);
+            std::memcpy(m_receipt.m_output_data.data(),
+                        res.output_data,
+                        res.output_size);
+        }
+
         return res;
     }
 
@@ -416,13 +426,15 @@ namespace cbdc::threepc::agent::runner {
     }
 
     void evm_host::finalize(int64_t gas_left, int64_t gas_used) {
-        auto maybe_acc = get_account(m_tx_context.tx_origin);
-        assert(maybe_acc.has_value());
-        auto& acc = maybe_acc.value();
-        auto acc_bal = to_uint64(acc.m_balance);
-        auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
-        acc.m_balance = evmc::uint256be(new_bal);
-        m_accounts[m_tx_context.tx_origin] = acc;
+        if(!m_dry_run) {
+            auto maybe_acc = get_account(m_tx_context.tx_origin);
+            assert(maybe_acc.has_value());
+            auto& acc = maybe_acc.value();
+            auto acc_bal = to_uint64(acc.m_balance);
+            auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
+            acc.m_balance = evmc::uint256be(new_bal);
+            m_accounts[m_tx_context.tx_origin] = acc;
+        }
         m_receipt.m_gas_used
             = evmc::uint256be(static_cast<uint64_t>(gas_used));
         m_receipt.m_from = m_tx_context.tx_origin;

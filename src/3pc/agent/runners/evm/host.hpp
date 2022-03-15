@@ -21,7 +21,8 @@ namespace cbdc::threepc::agent::runner {
                  interface::try_lock_callback_type try_lock_callback,
                  evmc_tx_context tx_context,
                  std::shared_ptr<evmc::VM> vm,
-                 evm_tx tx);
+                 evm_tx tx,
+                 bool dry_run);
 
         [[nodiscard]] auto
         account_exists(const evmc::address& addr) const noexcept -> bool final;
@@ -98,6 +99,7 @@ namespace cbdc::threepc::agent::runner {
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;
         evm_tx m_tx;
+        bool m_dry_run;
 
         mutable std::set<evmc::address> m_accessed_addresses;
         std::set<std::pair<evmc::address, evmc::bytes32>>

@@ -67,6 +67,7 @@ namespace cbdc::threepc::agent {
         ///                        result.
         /// \param initial_lock_type type of lock to acquire on initial
         ///                          function code.
+        /// \param dry_run true if the agent should skip writing state changes.
         impl(std::shared_ptr<logging::log> logger,
              cbdc::threepc::config cfg,
              runner::interface::factory_type runner_factory,
@@ -74,7 +75,8 @@ namespace cbdc::threepc::agent {
              runtime_locking_shard::key_type function,
              parameter_type param,
              exec_callback_type result_callback,
-             broker::lock_type initial_lock_type);
+             broker::lock_type initial_lock_type,
+             bool dry_run);
 
         /// Ensures function execution is complete before destruction.
         ~impl() override;
@@ -110,6 +112,7 @@ namespace cbdc::threepc::agent {
         bool m_permanent_error{false};
         mutable std::recursive_mutex m_mut;
         broker::lock_type m_initial_lock_type;
+        bool m_dry_run;
 
         void handle_begin(broker::interface::begin_return_type res);
 

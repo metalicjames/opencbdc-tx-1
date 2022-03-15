@@ -16,12 +16,14 @@ namespace cbdc::threepc::agent::runner {
                            const cbdc::threepc::config& cfg,
                            runtime_locking_shard::value_type function,
                            parameter_type param,
+                           bool dry_run,
                            run_callback_type result_callback,
                            try_lock_callback_type try_lock_callback)
         : interface(std::move(logger),
                     cfg,
                     std::move(function),
                     std::move(param),
+                    dry_run,
                     std::move(result_callback),
                     std::move(try_lock_callback)) {}
 
@@ -32,58 +34,12 @@ namespace cbdc::threepc::agent::runner {
     }
 
     auto evm_runner::run() -> bool {
-        auto maybe_from_acc = from_buffer<evm_account>(m_function);
-        if(!maybe_from_acc.has_value()) {
-            m_log->error("Unable to deserialize account");
-            return false;
-        }
-        auto& from_acc = maybe_from_acc.value();
-
         auto maybe_tx = from_buffer<evm_tx>(m_param);
         if(!maybe_tx.has_value()) {
             m_log->error("Unable to deserialize transaction");
             return false;
         }
         auto tx = std::make_shared<evm_tx>(maybe_tx.value());
-
-        auto tx_nonce = to_uint64(tx->m_nonce);
-        auto acc_nonce = to_uint64(from_acc.m_nonce);
-
-        if(acc_nonce + 1 != tx_nonce) {
-            m_log->trace("TX has incorrect nonce for from account");
-            m_result_callback(error_code::exec_error);
-            return true;
-        }
-
-        m_gas_limit = to_uint64(tx->m_gas_limit);
-
-        constexpr uint64_t base_gas = 21000;
-        constexpr uint64_t creation_gas = 32000;
-
-        auto min_gas = base_gas;
-        if(!tx->m_to.has_value()) {
-            min_gas += creation_gas;
-        }
-
-        if(m_gas_limit < min_gas) {
-            m_log->trace("TX does not have enough base gas");
-            m_result_callback(error_code::exec_error);
-            return true;
-        }
-
-        auto gas_price = to_uint64(tx->m_gas_price);
-        auto value = to_uint64(tx->m_value);
-        auto balance = to_uint64(from_acc.m_balance);
-
-        auto total_gas_cost = m_gas_limit * gas_price;
-
-        auto required_funds = value + total_gas_cost;
-        if(balance < required_funds) {
-            m_log->trace("From account has insufficient funds to cover gas "
-                         "and tx value");
-            m_result_callback(error_code::exec_error);
-            return true;
-        }
 
         auto tx_ctx = evmc_tx_context();
         // TODO: consider setting block height to the TX ticket number
@@ -92,9 +48,21 @@ namespace cbdc::threepc::agent::runner {
         auto timestamp
             = std::chrono::time_point_cast<std::chrono::seconds>(now);
         tx_ctx.block_timestamp = timestamp.time_since_epoch().count();
+
+        auto msg = evmc_message();
+
+        if(!m_dry_run) {
+            m_gas_limit = to_uint64(tx->m_gas_limit);
+            tx_ctx.tx_origin = tx->m_from;
+            tx_ctx.tx_gas_price = tx->m_gas_price;
+        } else {
+            tx_ctx.block_gas_limit = std::numeric_limits<int64_t>::max();
+            // TODO: set a lower limit for dry run transactions.
+            m_gas_limit = std::numeric_limits<int64_t>::max();
+            msg.gas = static_cast<int64_t>(m_gas_limit);
+        }
+
         tx_ctx.block_gas_limit = static_cast<int64_t>(m_gas_limit);
-        tx_ctx.tx_origin = tx->m_from;
-        tx_ctx.tx_gas_price = tx->m_gas_price;
 
         m_vm = std::make_shared<evmc::VM>(evmc_create_evmone());
         if(!(*m_vm)) {
@@ -106,23 +74,71 @@ namespace cbdc::threepc::agent::runner {
                                                m_try_lock_callback,
                                                tx_ctx,
                                                m_vm,
-                                               *tx);
+                                               *tx,
+                                               m_dry_run);
 
-        // Deduct gas
-        auto new_bal = balance - total_gas_cost;
-        from_acc.m_balance = evmc::uint256be(new_bal);
-        // Increment nonce
-        auto new_nonce = acc_nonce + 1;
-        from_acc.m_nonce = evmc::uint256be(new_nonce);
-        host->insert_account(tx->m_from, from_acc);
-
-        auto msg = evmc_message();
-        msg.sender = tx->m_from;
-        msg.value = tx->m_value;
         msg.input_data = tx->m_input.data();
         msg.input_size = tx->m_input.size();
-        msg.gas = static_cast<int64_t>(m_gas_limit - min_gas);
         msg.depth = 0;
+
+        if(!m_dry_run) {
+            auto maybe_from_acc = from_buffer<evm_account>(m_function);
+            if(!maybe_from_acc.has_value()) {
+                m_log->error("Unable to deserialize account");
+                return false;
+            }
+            auto& from_acc = maybe_from_acc.value();
+
+            auto tx_nonce = to_uint64(tx->m_nonce);
+            auto acc_nonce = to_uint64(from_acc.m_nonce);
+
+            if(acc_nonce + 1 != tx_nonce && !m_dry_run) {
+                m_log->trace("TX has incorrect nonce for from account");
+                m_result_callback(error_code::exec_error);
+                return true;
+            }
+
+            constexpr uint64_t base_gas = 21000;
+            constexpr uint64_t creation_gas = 32000;
+
+            auto min_gas = base_gas;
+            if(!tx->m_to.has_value()) {
+                min_gas += creation_gas;
+            }
+
+            if(m_gas_limit < min_gas && !m_dry_run) {
+                m_log->trace("TX does not have enough base gas");
+                m_result_callback(error_code::exec_error);
+                return true;
+            }
+
+            auto gas_price = to_uint64(tx->m_gas_price);
+            auto value = to_uint64(tx->m_value);
+            auto balance = to_uint64(from_acc.m_balance);
+
+            auto total_gas_cost = m_gas_limit * gas_price;
+
+            auto required_funds = value + total_gas_cost;
+            if(balance < required_funds && !m_dry_run) {
+                m_log->trace(
+                    "From account has insufficient funds to cover gas "
+                    "and tx value");
+                m_result_callback(error_code::exec_error);
+                return true;
+            }
+
+            msg.sender = tx->m_from;
+            msg.value = tx->m_value;
+            msg.gas = static_cast<int64_t>(m_gas_limit - min_gas);
+
+            // Deduct gas
+            auto new_bal = balance - total_gas_cost;
+            from_acc.m_balance = evmc::uint256be(new_bal);
+            // Increment nonce
+            auto new_nonce = acc_nonce + 1;
+            from_acc.m_nonce = evmc::uint256be(new_nonce);
+            host->insert_account(tx->m_from, from_acc);
+        }
 
         // Determine transaction type
         if(!tx->m_to.has_value()) {

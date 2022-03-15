@@ -57,6 +57,7 @@ TEST(agent_runner_test, rollback_test) {
                                                    cfg,
                                                    std::move(func),
                                                    std::move(param),
+                                                   false,
                                                    std::move(result_cb),
                                                    std::move(try_lock_cb));
     ASSERT_TRUE(runner.run());

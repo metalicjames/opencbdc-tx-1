@@ -67,11 +67,13 @@ namespace cbdc {
     auto operator<<(serializer& ser,
                     const threepc::agent::runner::evm_tx_receipt& r)
         -> serializer& {
-        return ser << r.m_from << r.m_to << r.m_gas_used << r.m_logs;
+        return ser << r.m_from << r.m_to << r.m_gas_used << r.m_logs
+                   << r.m_output_data;
     }
 
     auto operator>>(serializer& deser,
                     threepc::agent::runner::evm_tx_receipt& r) -> serializer& {
-        return deser >> r.m_from >> r.m_to >> r.m_gas_used >> r.m_logs;
+        return deser >> r.m_from >> r.m_to >> r.m_gas_used >> r.m_logs
+            >> r.m_output_data;
     }
 }

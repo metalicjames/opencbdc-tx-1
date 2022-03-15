@@ -94,7 +94,8 @@ TEST_F(agent_test, deploy_test) {
                 {{contract_name, m_deploy_contract}});
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
         },
-        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
 }
 
@@ -120,7 +121,8 @@ TEST_F(agent_test, rollback_test) {
             ASSERT_FALSE(callback_called);
             callback_called = true;
         },
-        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     ASSERT_TRUE(agent->exec());
 }
@@ -164,7 +166,8 @@ TEST_F(agent_test, wound_deploy_test) {
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
             agent0_complete = true;
         },
-        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type,
+        false);
     auto agent1 = std::make_shared<cbdc::threepc::agent::impl>(
         m_log,
         m_cfg,
@@ -182,7 +185,8 @@ TEST_F(agent_test, wound_deploy_test) {
             ASSERT_EQ(ret, std::get<cbdc::threepc::agent::return_type>(res));
             agent1_complete = true;
         },
-        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type,
+        false);
     std::thread t0([&]() {
         ASSERT_TRUE(agent0->exec());
     });

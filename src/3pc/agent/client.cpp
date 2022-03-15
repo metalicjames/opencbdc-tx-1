@@ -19,9 +19,10 @@ namespace cbdc::threepc::agent::rpc {
 
     auto client::exec(runtime_locking_shard::key_type function,
                       parameter_type param,
+                      bool dry_run,
                       const interface::exec_callback_type& result_callback)
         -> bool {
-        auto req = request{std::move(function), std::move(param)};
+        auto req = request{std::move(function), std::move(param), dry_run};
         return m_client->call(std::move(req),
                               [result_callback](std::optional<response> resp) {
                                   assert(resp.has_value());

@@ -57,7 +57,7 @@ namespace cbdc::threepc {
             return false;
         }
         auto params = make_pay_params(to, amount);
-        return execute_params(params, result_callback);
+        return execute_params(params, false, result_callback);
     }
 
     auto account_wallet::get_pubkey() const -> pubkey_t {
@@ -67,7 +67,7 @@ namespace cbdc::threepc {
     auto account_wallet::update_balance(
         const std::function<void(bool)>& result_callback) -> bool {
         auto params = make_pay_params(pubkey_t{}, 0);
-        return execute_params(params, result_callback);
+        return execute_params(params, false, result_callback);
     }
 
     auto account_wallet::make_pay_params(pubkey_t to, uint64_t amount) const
@@ -106,10 +106,12 @@ namespace cbdc::threepc {
 
     auto account_wallet::execute_params(
         cbdc::buffer params,
+        bool dry_run,
         const std::function<void(bool)>& result_callback) -> bool {
         auto send_success = m_agent->exec(
             m_pay_contract_key,
             std::move(params),
+            dry_run,
             [&, result_callback](agent::interface::exec_return_type res) {
                 auto success = std::holds_alternative<agent::return_type>(res);
                 if(success) {

@@ -15,7 +15,8 @@ namespace cbdc::threepc::agent {
                runtime_locking_shard::key_type function,
                parameter_type param,
                exec_callback_type result_callback,
-               broker::lock_type initial_lock_type)
+               broker::lock_type initial_lock_type,
+               bool dry_run)
         : interface(std::move(function),
                     std::move(param),
                     std::move(result_callback)),
@@ -23,7 +24,9 @@ namespace cbdc::threepc::agent {
           m_cfg(std::move(cfg)),
           m_runner_factory(std::move(runner_factory)),
           m_broker(std::move(broker)),
-          m_initial_lock_type(initial_lock_type) {}
+          m_initial_lock_type(dry_run ? broker::lock_type::read
+                                      : initial_lock_type),
+          m_dry_run(dry_run) {}
 
     auto impl::exec() -> bool {
         std::unique_lock l(m_mut);
@@ -126,6 +129,14 @@ namespace cbdc::threepc::agent {
         assert(m_state == state::begin_sent
                || m_state == state::rollback_complete);
         m_state = state::function_get_sent;
+
+        if(m_dry_run && get_function().size() == 0) {
+            // If this is a dry-run and the function key is empty, the runner
+            // will handle retrieving any keys directly.
+            handle_function(broker::value_type());
+            return;
+        }
+
         auto tl_success = m_broker->try_lock(
             m_ticket_number.value(),
             get_function(),
@@ -169,7 +180,7 @@ namespace cbdc::threepc::agent {
         return m_broker->try_lock(
             m_ticket_number.value(),
             std::move(key),
-            broker::lock_type::write,
+            m_dry_run ? broker::lock_type::read : broker::lock_type::write,
             [this, cb = std::move(res_cb)](
                 broker::interface::try_lock_return_type res) {
                 handle_try_lock_response(cb, std::move(res));
@@ -193,6 +204,7 @@ namespace cbdc::threepc::agent {
                         m_cfg,
                         std::move(v),
                         get_param(),
+                        m_dry_run,
                         [this](const runner::interface::run_return_type&
                                    run_res) {
                             handle_run(run_res);
@@ -246,9 +258,13 @@ namespace cbdc::threepc::agent {
         m_log->trace(this,
                      "Agent requesting commit for",
                      m_ticket_number.value());
+        auto payload = return_type();
+        if(!m_dry_run) {
+            payload = std::get<broker::state_update_type>(m_result.value());
+        }
         auto maybe_success = m_broker->commit(
             m_ticket_number.value(),
-            std::get<broker::state_update_type>(m_result.value()),
+            payload,
             [this](broker::interface::commit_return_type commit_res) {
                 handle_commit(commit_res);
             });

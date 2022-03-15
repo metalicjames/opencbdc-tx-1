@@ -99,7 +99,8 @@ TEST_F(evm_test, initial_test) {
                     res));
             prom.set_value();
         },
-        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     auto res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -129,7 +130,8 @@ TEST_F(evm_test, host_storage) {
         },
         tx_ctx,
         nullptr,
-        {});
+        {},
+        false);
     ASSERT_EQ(host.set_storage(addr3, val2, val2), EVMC_STORAGE_ADDED);
     ASSERT_FALSE(host.should_retry());
     m = host.get_state_updates();
@@ -144,7 +146,8 @@ TEST_F(evm_test, host_storage) {
         },
         tx_ctx,
         nullptr,
-        {});
+        {},
+        false);
     const auto& chost = host;
 
     // Null bytes returned for non-existing accounts.
@@ -206,7 +209,8 @@ TEST_F(evm_test, simple_send) {
                     res));
             prom.set_value();
         },
-        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     auto res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -230,7 +234,8 @@ TEST_F(evm_test, simple_send) {
                         cbdc::threepc::agent::interface::error_code>(r));
             prom.set_value();
         },
-        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -339,7 +344,8 @@ TEST_F(evm_test, contract_deploy) {
             auto& receipt = maybe_receipt.value();
             prom.set_value(receipt);
         },
-        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     auto res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -389,7 +395,8 @@ TEST_F(evm_test, contract_deploy) {
             auto& rec = maybe_receipt.value();
             prom.set_value(rec);
         },
-        cbdc::threepc::agent::runner::evm_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     res = fut.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(res, std::future_status::ready);
@@ -417,6 +424,60 @@ TEST_F(evm_test, contract_deploy) {
     auto exp_addr = evmc::address();
     std::memcpy(exp_addr.bytes, contract_addr.data(), contract_addr.size());
     ASSERT_EQ(l.m_addr, exp_addr);
+
+    auto retrieve_input
+        = cbdc::buffer::from_hex("2e64cec1000000000000000000000000000000000000"
+                                 "0000000000000000000000000000")
+              .value();
+    tx.m_input.resize(retrieve_input.size());
+    std::memcpy(tx.m_input.data(),
+                retrieve_input.data(),
+                retrieve_input.size());
+    params = cbdc::make_buffer(tx);
+
+    auto retrieve_txid = cbdc::threepc::agent::runner::tx_id(tx);
+
+    prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
+    fut = prom.get_future();
+    agent = std::make_shared<cbdc::threepc::agent::impl>(
+        m_log,
+        m_cfg,
+        &cbdc::threepc::agent::runner::factory<
+            cbdc::threepc::agent::runner::evm_runner>::create,
+        m_broker,
+        cbdc::buffer(),
+        params,
+        [&](cbdc::threepc::agent::interface::exec_return_type r) {
+            ASSERT_TRUE(
+                std::holds_alternative<cbdc::threepc::agent::return_type>(r));
+            auto& ret = std::get<cbdc::threepc::agent::return_type>(r);
+            auto it = ret.find(retrieve_txid);
+            ASSERT_NE(it, ret.end());
+            auto maybe_receipt = cbdc::from_buffer<
+                cbdc::threepc::agent::runner::evm_tx_receipt>(it->second);
+            ASSERT_TRUE(maybe_receipt.has_value());
+            auto& rec = maybe_receipt.value();
+            prom.set_value(rec);
+        },
+        cbdc::threepc::agent::runner::evm_runner::initial_lock_type,
+        true);
+    ASSERT_TRUE(agent->exec());
+    res = fut.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(res, std::future_status::ready);
+
+    receipt = fut.get();
+    ASSERT_TRUE(receipt.m_to.has_value());
+    addr_buf.clear();
+    addr_buf.append(receipt.m_to->bytes, sizeof(receipt.m_to->bytes));
+    ASSERT_EQ(addr_buf, contract_addr);
+
+    auto output = evmc::uint256be();
+    ASSERT_EQ(receipt.m_output_data.size(), sizeof(output));
+    std::memcpy(output.bytes,
+                receipt.m_output_data.data(),
+                receipt.m_output_data.size());
+    auto exp = evmc::uint256be(42);
+    ASSERT_EQ(output, exp);
 }
 
 TEST_F(evm_test, rlp_serialize_length_test) {

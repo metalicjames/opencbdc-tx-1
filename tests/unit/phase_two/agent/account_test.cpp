@@ -195,7 +195,8 @@ TEST_F(account_test, pay_test) {
                       std::get<cbdc::threepc::agent::return_type>(res));
             complete = true;
         },
-        cbdc::threepc::agent::runner::lua_runner::initial_lock_type);
+        cbdc::threepc::agent::runner::lua_runner::initial_lock_type,
+        false);
     ASSERT_TRUE(agent->exec());
     ASSERT_TRUE(complete);
 }

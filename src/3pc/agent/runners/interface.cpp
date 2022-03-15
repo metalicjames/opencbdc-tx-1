@@ -10,12 +10,14 @@ namespace cbdc::threepc::agent::runner {
                          const cbdc::threepc::config& cfg,
                          runtime_locking_shard::value_type function,
                          parameter_type param,
+                         bool dry_run,
                          run_callback_type result_callback,
                          try_lock_callback_type try_lock_callback)
         : m_log(std::move(logger)),
           m_cfg(cfg),
           m_function(std::move(function)),
           m_param(std::move(param)),
+          m_dry_run(dry_run),
           m_result_callback(std::move(result_callback)),
           m_try_lock_callback(std::move(try_lock_callback)) {}
 }

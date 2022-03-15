@@ -43,6 +43,7 @@ namespace cbdc::threepc::agent::runner {
         std::optional<evmc::address> m_to{};
         evmc::uint256be m_gas_used{};
         std::vector<evm_log> m_logs{};
+        std::vector<uint8_t> m_output_data{};
     };
 }
 
