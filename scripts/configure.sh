@@ -82,10 +82,11 @@ fi
 cp libnuraft.a /usr/local/lib
 cp -r ../include/libnuraft /usr/local/include
 
-cd ..
+cd ../..
 
 wget https://www.lua.org/ftp/lua-5.4.3.tar.gz
 tar zxf lua-5.4.3.tar.gz
+rm -rf lua-5.4.3.tar.gz
 cd lua-5.4.3
 make
 make install
@@ -120,6 +121,7 @@ rm -rf evmone-be870917e8cefd2b125bd27375dd9d2409ff1f68
 
 wget https://github.com/chfast/ethash/archive/e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
 unzip e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
+rm e3e002ecc25ca699349aa62fa38e7b7cc5f653af.zip
 cd ethash-e3e002ecc25ca699349aa62fa38e7b7cc5f653af
 mkdir build
 cd build
