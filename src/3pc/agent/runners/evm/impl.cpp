@@ -84,8 +84,9 @@ namespace cbdc::threepc::agent::runner {
         if(!m_dry_run) {
             auto maybe_from_acc = from_buffer<evm_account>(m_function);
             if(!maybe_from_acc.has_value()) {
-                m_log->error("Unable to deserialize account");
-                return false;
+                m_log->trace("Unable to deserialize account");
+                m_result_callback(error_code::function_load);
+                return true;
             }
             auto& from_acc = maybe_from_acc.value();
 
