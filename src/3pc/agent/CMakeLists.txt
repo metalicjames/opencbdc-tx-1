@@ -15,6 +15,7 @@ target_link_libraries(agentd agent
                              phasetwo
                              evm_runner
                              runners
+                             transactions
                              rpc
                              network
                              serialization

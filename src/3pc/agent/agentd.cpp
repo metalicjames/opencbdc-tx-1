@@ -8,9 +8,12 @@
 #include "directory/impl.hpp"
 #include "format.hpp"
 #include "impl.hpp"
+#include "runners/evm/format.hpp"
+#include "runners/evm/messages.hpp"
 #include "runtime_locking_shard/client.hpp"
 #include "server.hpp"
 #include "ticket_machine/client.hpp"
+#include "transactions/util.hpp"
 #include "util.hpp"
 #include "util/common/logging.hpp"
 #include "util/rpc/format.hpp"
@@ -20,8 +23,8 @@
 #include <csignal>
 
 auto main(int argc, char** argv) -> int {
-    auto log
-        = std::make_shared<cbdc::logging::log>(cbdc::logging::log_level::warn);
+    auto log = std::make_shared<cbdc::logging::log>(
+        cbdc::logging::log_level::trace);
 
     auto sha2_impl = SHA256AutoDetect();
     log->info("using sha2: ", sha2_impl);
@@ -88,6 +91,27 @@ auto main(int argc, char** argv) -> int {
     auto recover_res = recover_fut.get();
     if(!recover_res) {
         log->error("Error during broker recovery");
+        return 1;
+    }
+
+    auto init_addr
+        = cbdc::buffer::from_hex("63a56053c2434ff587f4ce3d4c4e930899ac1513")
+              .value();
+    auto acc = cbdc::threepc::agent::runner::evm_account();
+    acc.m_balance = evmc::uint256be(std::numeric_limits<uint64_t>::max());
+    auto acc_buf = cbdc::make_buffer(acc);
+    auto seed_success = std::promise<bool>();
+    auto seed_fut = seed_success.get_future();
+    success = cbdc::threepc::put_row(broker, init_addr, acc_buf, [&](bool s) {
+        seed_success.set_value(s);
+    });
+    if(!success) {
+        log->error("Error requesting seeding account");
+        return 1;
+    }
+    auto seed_res = seed_fut.get();
+    if(!seed_res) {
+        log->error("Error during seeding");
         return 1;
     }
 

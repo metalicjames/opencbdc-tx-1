@@ -29,7 +29,7 @@ class Response:
             updates = serialization.unpack(dict, buf[1:])
             return cls(updates, None)
         elif success_or_failure == 1:
-            error_code = struct.unpack('B', buf[1:])
+            (error_code,) = struct.unpack('B', buf[1:])
             return cls(None, error_code)
         else:
             raise ValueError('Invalid response', success_or_failure)

@@ -17,7 +17,7 @@ class Transaction:
         ret = bytes()
         ret += self.from_addr
 
-        has_to = self.to_addr is not None
+        has_to = self.to_addr is not None and len(self.to_addr) > 0
         ret += struct.pack('?', has_to)
         if has_to:
             ret += self.to_addr
@@ -80,7 +80,19 @@ class Transaction:
 
     def txid(self) -> bytes:
         buf = self.pack()
-        return hashlib.sha256(buf)
+        return hashlib.sha256(buf).digest()
+
+    def to_dict(self):
+        ret = {
+            'from': self.from_addr.hex(),
+            'to': self.to_addr.hex() if self.to_addr is not None else None,
+            'value': serialization.pack_uint256be(self.value).hex(),
+            'nonce': serialization.pack_uint256be(self.nonce).hex(),
+            'gas_price': serialization.pack_uint256be(self.gas_price).hex(),
+            'gas_limit': serialization.pack_uint256be(self.gas_limit).hex(),
+            'input_data': self.input_data.hex() if self.input_data is not None else None
+        }
+        return ret
 
 class Log:
     def __init__(self, addr: bytes, data: bytes, topics: list):
@@ -102,6 +114,14 @@ class Log:
             buf_start += serialization.UINT256_LEN
             topics.append(t)
         return (cls(addr, data, topics), buf_start)
+
+    def to_dict(self):
+        ret = {
+            'address': self.addr.hex(),
+            'data': self.data.hex(),
+            'topics': [t.hex() for t in self.topics]
+        }
+        return ret
 
 class Receipt:
     def __init__(self, tx: Transaction, create_address: bytes, gas_used: int, logs: list, output_data: bytes):
@@ -135,3 +155,21 @@ class Receipt:
         output_data = buf[offset:offset+output_data_len]
         offset += output_data_len
         return (cls(tx, create_address, gas_used, logs, output_data), offset)
+
+    def to_dict(self):
+        ret = {
+            'transaction': self.tx.to_dict(),
+            'from': self.tx.from_addr.hex(),
+            'to': self.tx.to_addr.hex() if self.tx.to_addr is not None else None,
+            'transactionHash': self.tx.txid().hex(),
+            'contractAddress': self.create_address.hex() if self.create_address is not None else None,
+            'gasUsed': '0x' + serialization.pack_uint256be(self.gas_used).hex(),
+            'cumulativeGasUsed': '0x' + serialization.pack_uint256be(self.gas_used).hex(),
+            'logs': [l.to_dict() for l in self.logs],
+            'output_data': self.output_data.hex(),
+            'success': '0x1',
+            'blockNumber': '0x01',
+            'blockHash': bytearray(32).hex(),
+            'transactionIndex': '0x0'
+        }
+        return ret

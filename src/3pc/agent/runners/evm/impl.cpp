@@ -37,7 +37,8 @@ namespace cbdc::threepc::agent::runner {
         auto maybe_tx = from_buffer<evm_tx>(m_param);
         if(!maybe_tx.has_value()) {
             m_log->error("Unable to deserialize transaction");
-            return false;
+            m_result_callback(error_code::function_load);
+            return true;
         }
         auto tx = std::make_shared<evm_tx>(maybe_tx.value());
 

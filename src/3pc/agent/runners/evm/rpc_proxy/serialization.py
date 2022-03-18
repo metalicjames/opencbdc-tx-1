@@ -11,7 +11,13 @@ def pack_uint256be(val: int) -> bytes:
     return ext
 
 def unpack_uint256be(buf: bytes) -> int:
-    val = struct.unpack('>Q', buf[UINT256_LEN - UINT64_LEN:UINT256_LEN])[0]
+    if len(buf) < UINT64_LEN:
+        b = bytearray(UINT64_LEN - len(buf)) + buf
+    else:
+        b = buf[UINT256_LEN - UINT64_LEN:UINT256_LEN]
+    if len(b) == 0:
+        return 0
+    val = struct.unpack('>Q', b)[0]
     return val
 
 def unpack_hex_uint256be(dat: str) -> int:
