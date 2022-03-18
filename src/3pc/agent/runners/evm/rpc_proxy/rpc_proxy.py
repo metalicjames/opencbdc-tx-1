@@ -18,7 +18,7 @@ PORT = 6666
 LISTEN_HOST = ''
 LISTEN_PORT = 8080
 
-addrs = {'0xb695a631806bcca49e9106cb6dcc2e7fd544a592': 1}
+addrs = {}
 receipts = {}
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,7 +59,7 @@ def send_transaction(tx, dry_run):
             raise ValueError('Invalid response')
         (receipt, _) = transaction.Receipt.unpack(receipt_buf)
         if not dry_run:
-            addrs[tx.from_addr] = addrs.get(tx.from_addr, 0) + 1
+            addrs[tx.from_addr] = addrs.get(tx.from_addr, 1) + 1
         return receipt
 
     raise RuntimeError(r.failure)
@@ -77,9 +77,10 @@ def chain_id():
 
 def tx_count(address, block):
     # TODO: retrieve this info from shards
-    if address in addrs:
-        return addrs[address]
-    return 0
+    addr_buf = bytes.fromhex(address[2:])
+    if addr_buf in addrs:
+        return addrs[addr_buf]
+    return 1
 
 def get_block(*args):
     null_hash = bytearray(32).hex()
@@ -118,17 +119,19 @@ def send_raw_transaction(tx):
 
     r = eth_utils.big_endian_to_int(txs[10])
     y = eth_utils.big_endian_to_int(txs[11])
+    v = eth_utils.big_endian_to_int(txs[9])
     s = ecdsa.ecdsa.Signature(r, y)
 
-    rlp_payload = rlp.encode(txs[:9])
-    payload = bytes(2) + rlp_payload
+    rlp_payload = rlp.encode(txs[:-3])
+    payload = b'\x02' + rlp_payload
     sighash = sha3.keccak_256(payload).digest()
 
     g = ecdsa.curves.SECP256k1.generator
 
     (pk0, pk1) = s.recover_public_keys(eth_utils.big_endian_to_int(sighash), g)
-    pk_buf = pk1.point.to_bytes(encoding='uncompressed')
-    # TODO: this address doesn't match what ethers generates
+    use_pk = pk0 if v == 0 else pk1
+
+    pk_buf = use_pk.point.to_bytes(encoding='uncompressed')
     addr = sha3.keccak_256(pk_buf[1:]).digest()[-20:]
 
     t = transaction.Transaction(addr, txs[5], value, nonce, gas_price, gas_limit, txs[7])

@@ -95,7 +95,7 @@ auto main(int argc, char** argv) -> int {
     }
 
     auto init_addr
-        = cbdc::buffer::from_hex("63a56053c2434ff587f4ce3d4c4e930899ac1513")
+        = cbdc::buffer::from_hex("b695a631806bcca49e9106cb6dcc2e7fd544a592")
               .value();
     auto acc = cbdc::threepc::agent::runner::evm_account();
     acc.m_balance = evmc::uint256be(std::numeric_limits<uint64_t>::max());
