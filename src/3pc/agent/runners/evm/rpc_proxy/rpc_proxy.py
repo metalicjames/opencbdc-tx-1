@@ -64,9 +64,12 @@ def send_transaction(tx, dry_run):
 
     raise RuntimeError(r.failure)
 
-def call(param):
+def call(param, state):
     tx = transaction.Transaction.from_json(param)
-    return send_transaction(tx, True)
+    tx.gas_limit = 1000000000
+    tx.gas_price = 0
+    res = send_transaction(tx, True)
+    return '0x' + res.output_data.hex()
 
 def send_tx(param):
     tx = transaction.Transaction.from_json(param)
@@ -102,7 +105,7 @@ def get_block(*args):
 
 def estimate_gas(tx):
     # TODO: actually estimate gas
-    return '0xffff'
+    return '0xffffffffff'
 
 def block_number():
     return '0x01'

@@ -62,15 +62,24 @@ class Transaction:
 
     @classmethod
     def from_json(cls, tx: dict):
-        from_addr = bytes.fromhex(tx['from'])
+        from_addr = bytes.fromhex(tx['from'][2:])
         to_addr = None
         if 'to' in tx:
-            to_addr = bytes.fromhex(tx['to'])
+            to_addr = bytes.fromhex(tx['to'][2:])
 
-        value = serialization.unpack_hex_uint256be(tx['value'])
-        nonce = serialization.unpack_hex_uint256be(tx['nonce'])
-        gas_price = serialization.unpack_hex_uint256be(tx['gasPrice'])
-        gas_limit = serialization.unpack_hex_uint256be(tx['gas'])
+        value = 0
+        nonce = 0
+        gas_price = 0
+        gas_limit = 0
+
+        if 'value' in tx:
+            value = serialization.unpack_hex_uint256be(tx['value'])
+        if 'nonce' in tx:
+            nonce = serialization.unpack_hex_uint256be(tx['nonce'])
+        if 'gasPrice' in tx:
+            gas_price = serialization.unpack_hex_uint256be(tx['gasPrice'])
+        if 'gas' in tx:
+            gas_limit = serialization.unpack_hex_uint256be(tx['gas'])
 
         input_data = None
         if 'input' in tx:
@@ -116,10 +125,16 @@ class Log:
         return (cls(addr, data, topics), buf_start)
 
     def to_dict(self):
+        # TODO: properly fill these fields
         ret = {
-            'address': self.addr.hex(),
+            'address': '0x' + self.addr.hex(),
             'data': self.data.hex(),
-            'topics': [t.hex() for t in self.topics]
+            'topics': [t.hex() for t in self.topics],
+            'transactionIndex': '0x0',
+            'blockNumber': '0x1',
+            'transactionHash': bytearray(32).hex(),
+            'blockHash': bytearray(32).hex(),
+            'logIndex': '0x0'
         }
         return ret
 
