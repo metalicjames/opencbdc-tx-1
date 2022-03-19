@@ -82,8 +82,8 @@ class Transaction:
             gas_limit = serialization.unpack_hex_uint256be(tx['gas'])
 
         input_data = None
-        if 'input' in tx:
-            input_data = bytes.fromhex(tx['input'])
+        if 'data' in tx:
+            input_data = bytes.fromhex(tx['data'][2:])
 
         return cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data)
 

@@ -14,7 +14,7 @@ import sha3
 import eth_utils
 
 HOST = ''
-PORT = 6666
+PORT = 6667
 LISTEN_HOST = ''
 LISTEN_PORT = 8080
 
@@ -66,8 +66,6 @@ def send_transaction(tx, dry_run):
 
 def call(param, state):
     tx = transaction.Transaction.from_json(param)
-    tx.gas_limit = 1000000000
-    tx.gas_price = 0
     res = send_transaction(tx, True)
     return '0x' + res.output_data.hex()
 
