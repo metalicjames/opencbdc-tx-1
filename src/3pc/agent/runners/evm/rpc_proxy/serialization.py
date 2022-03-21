@@ -21,6 +21,8 @@ def unpack_uint256be(buf: bytes) -> int:
     return val
 
 def unpack_hex_uint256be(dat: str) -> int:
+    if dat[:2] == '0x':
+        dat = dat[2:]
     buf = bytes.fromhex(dat)
     ext_buf = bytearray(UINT64_LEN - len(buf)) + buf
     val = struct.unpack('>Q', ext_buf)[0]

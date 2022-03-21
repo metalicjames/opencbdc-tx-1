@@ -80,8 +80,8 @@ def tx_count(address, block):
     # TODO: retrieve this info from shards
     addr_buf = bytes.fromhex(address[2:])
     if addr_buf in addrs:
-        return addrs[addr_buf]
-    return 1
+        return hex(addrs[addr_buf])
+    return hex(1)
 
 def get_block(*args):
     null_hash = bytearray(32).hex()
@@ -109,23 +109,46 @@ def block_number():
     return '0x01'
 
 def send_raw_transaction(tx):
-    assert tx[2:4] == '02'
-    txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
-    tx_buf = bytes.fromhex(tx[4:])
-    txs = rlp.decode(tx_buf)
-    value = serialization.unpack_uint256be(txs[6])
-    nonce = serialization.unpack_uint256be(txs[1])
-    gas_price = serialization.unpack_uint256be(txs[3])
-    gas_limit = serialization.unpack_uint256be(txs[4])
+    if tx[2:4] == '02':
+        tx_buf = bytes.fromhex(tx[4:])
+        txs = rlp.decode(tx_buf)
+        value = serialization.unpack_uint256be(txs[6])
+        nonce = serialization.unpack_uint256be(txs[1])
+        gas_price = serialization.unpack_uint256be(txs[3])
+        gas_limit = serialization.unpack_uint256be(txs[4])
+        to_addr = tx_dat[5]
+        input_data = tx_dat[7]
 
-    r = eth_utils.big_endian_to_int(txs[10])
-    y = eth_utils.big_endian_to_int(txs[11])
-    v = eth_utils.big_endian_to_int(txs[9])
+        r = eth_utils.big_endian_to_int(txs[10])
+        y = eth_utils.big_endian_to_int(txs[11])
+        v = eth_utils.big_endian_to_int(txs[9])
+
+        rlp_payload = b'\x02' + rlp.encode(txs[:-3])
+    else:
+        tx_buf = bytes.fromhex(tx[2:])
+        tx_dat = rlp.decode(tx_buf)
+        value = serialization.unpack_uint256be(tx_dat[4])
+        nonce = serialization.unpack_uint256be(tx_dat[0])
+        gas_price = serialization.unpack_uint256be(tx_dat[1])
+        gas_limit = serialization.unpack_uint256be(tx_dat[2])
+        to_addr = tx_dat[3]
+        input_data = tx_dat[5]
+
+        r = eth_utils.big_endian_to_int(tx_dat[7])
+        y = eth_utils.big_endian_to_int(tx_dat[8])
+        v = eth_utils.big_endian_to_int(tx_dat[6])
+
+        chainid_int = serialization.unpack_hex_uint256be(chain_id())
+        v -= 35 + (chainid_int * 2)
+
+        tx_dat[6] = chainid_int
+        tx_dat[7] = bytes()
+        tx_dat[8] = bytes()
+
+        rlp_payload = rlp.encode(tx_dat)
+
     s = ecdsa.ecdsa.Signature(r, y)
-
-    rlp_payload = rlp.encode(txs[:-3])
-    payload = b'\x02' + rlp_payload
-    sighash = sha3.keccak_256(payload).digest()
+    sighash = sha3.keccak_256(rlp_payload).digest()
 
     g = ecdsa.curves.SECP256k1.generator
 
@@ -135,7 +158,8 @@ def send_raw_transaction(tx):
     pk_buf = use_pk.point.to_bytes(encoding='uncompressed')
     addr = sha3.keccak_256(pk_buf[1:]).digest()[-20:]
 
-    t = transaction.Transaction(addr, txs[5], value, nonce, gas_price, gas_limit, txs[7])
+    t = transaction.Transaction(addr, to_addr, value, nonce, gas_price, gas_limit, input_data)
+    txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
     ret = send_transaction(t, False)
     retval = '0x' + txid
     receipts[retval] = ret
@@ -144,6 +168,18 @@ def send_raw_transaction(tx):
 def get_tx_receipt(txid):
     ret = receipts[txid].to_dict()
     return ret
+
+def client_version():
+    return 'opencbdc/v0.0'
+
+def gas_price():
+    return '0x0'
+
+def get_tx(txid):
+    r = receipts[txid]
+    tx = r.tx.to_dict()
+    tx['hash'] = txid
+    return tx
 
 def main():
     server = rpc.SimpleJSONRPCServer((LISTEN_HOST, LISTEN_PORT))
@@ -156,6 +192,9 @@ def main():
     server.register_function(block_number, 'eth_blockNumber')
     server.register_function(send_raw_transaction, 'eth_sendRawTransaction')
     server.register_function(get_tx_receipt, 'eth_getTransactionReceipt')
+    server.register_function(client_version, 'web3_clientVersion')
+    server.register_function(gas_price, 'eth_gasPrice')
+    server.register_function(get_tx, 'eth_getTransactionByHash')
     server.serve_forever()
 
 if __name__ == '__main__':

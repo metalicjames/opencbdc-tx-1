@@ -93,13 +93,13 @@ class Transaction:
 
     def to_dict(self):
         ret = {
-            'from': self.from_addr.hex(),
-            'to': self.to_addr.hex() if self.to_addr is not None else None,
-            'value': serialization.pack_uint256be(self.value).hex(),
-            'nonce': serialization.pack_uint256be(self.nonce).hex(),
-            'gas_price': serialization.pack_uint256be(self.gas_price).hex(),
-            'gas_limit': serialization.pack_uint256be(self.gas_limit).hex(),
-            'input_data': self.input_data.hex() if self.input_data is not None else None
+            'from': '0x' + self.from_addr.hex(),
+            'to': '0x' + self.to_addr.hex() if self.to_addr is not None else None,
+            'value': '0x' + serialization.pack_uint256be(self.value).hex(),
+            'nonce': '0x' + serialization.pack_uint256be(self.nonce).hex(),
+            'gas': '0x' + serialization.pack_uint256be(self.gas_price).hex(),
+            'gasLimit': '0x' + serialization.pack_uint256be(self.gas_limit).hex(),
+            'data': self.input_data.hex() if self.input_data is not None else None
         }
         return ret
 
