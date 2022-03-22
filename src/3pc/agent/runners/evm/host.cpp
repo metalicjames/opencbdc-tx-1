@@ -38,13 +38,6 @@ namespace cbdc::threepc::agent::runner {
             return it->second;
         }
 
-        auto accessed_it = m_accessed_addresses.find(addr);
-        if(accessed_it != m_accessed_addresses.end()) {
-            // There is no account at this address, but we already know that
-            // so don't try to retrieve it again.
-            return std::nullopt;
-        }
-
         auto addr_key = cbdc::buffer();
         addr_key.append(&addr.bytes[0], sizeof(addr.bytes));
 
@@ -69,6 +62,7 @@ namespace cbdc::threepc::agent::runner {
             m_accessed_addresses.insert(addr);
             auto v = std::get<broker::value_type>(res);
             if(v.size() == 0) {
+                m_accounts[addr] = std::nullopt;
                 return std::nullopt;
             }
             auto maybe_acc = from_buffer<evm_account>(v);
@@ -366,10 +360,13 @@ namespace cbdc::threepc::agent::runner {
         -> runtime_locking_shard::state_update_type {
         auto ret = runtime_locking_shard::state_update_type();
         for(auto& [addr, acc] : m_accounts) {
+            if(!acc.has_value()) {
+                continue;
+            }
             auto key = make_buffer(addr);
             auto val = cbdc::buffer();
-            if(!acc.m_destruct) {
-                val = make_buffer(acc);
+            if(!acc->m_destruct) {
+                val = make_buffer(*acc);
             }
             ret[key] = val;
         }
