@@ -172,6 +172,7 @@ namespace cbdc::threepc::agent::runner {
             m_result_callback(error_code::wounded);
         } else {
             if(result.status_code == EVMC_REVERT) {
+                m_log->trace("Contract reverted");
                 host->revert();
             }
             auto gas_used
@@ -179,6 +180,9 @@ namespace cbdc::threepc::agent::runner {
             host->finalize(result.gas_left, gas_used);
             auto state_updates = host->get_state_updates();
             m_result_callback(state_updates);
+            auto out_buf = cbdc::buffer();
+            out_buf.append(result.output_data, result.output_size);
+            m_log->trace("EVM output data:", out_buf.to_hex());
         }
     }
 }

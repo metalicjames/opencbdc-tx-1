@@ -20,6 +20,9 @@ LISTEN_PORT = 8080
 
 addrs = {}
 receipts = {}
+blocks = []
+blk_hashes = {}
+contract_code = {}
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.connect((HOST, PORT))
@@ -65,50 +68,76 @@ def send_transaction(tx, dry_run):
     raise RuntimeError(r.failure)
 
 def call(param, state):
+    print('call', param.items())
     tx = transaction.Transaction.from_json(param)
     res = send_transaction(tx, True)
     return '0x' + res.output_data.hex()
 
 def send_tx(param):
+    print('send_tx')
     tx = transaction.Transaction.from_json(param)
     return send_transaction(tx, False)
 
 def chain_id():
-    return '0xdeadbeef'
+    print('chain_id')
+    return '0xcbdc'
 
 def tx_count(address, block):
+    print('tx_count', address, block)
     # TODO: retrieve this info from shards
     addr_buf = bytes.fromhex(address[2:])
     if addr_buf in addrs:
         return hex(addrs[addr_buf])
     return hex(1)
 
-def get_block(*args):
+def make_block(txid):
     null_hash = bytearray(32).hex()
+    parent = blocks[-1]['parentHash'] if len(blocks) > 0 else null_hash
     t = '0x' + struct.pack('>Q', int(time.time())).hex()
     null_addr = bytearray(20).hex()
-
     blk = {
-        'hash': null_hash,
-        'parentHash': null_hash,
-        'number': '0x01',
+        'hash': txid if txid is not None else null_hash,
+        'parentHash': parent,
+        'number': hex(len(blocks)),
         'timestamp': t,
         'gasLimit': '0xffffffff',
         'gasUsed': '0x0',
         'miner': null_addr,
         'extraData': '',
-        'baseFeePerGas': '0x0'
+        'baseFeePerGas': '0x0',
+        'transactions': [txid] if txid is not None else [],
+        'nonce': '0x00000000',
+        'logsBloom': '0x' + bytearray(256).hex(),
     }
-    return blk
+    blk_hashes[txid] = len(blocks)
+    blk_hashes['latest'] = len(blocks)
+    blocks.append(blk)
+
+def get_block(blk_id, full):
+    print('get_block', blk_id, full)
+    assert full is False
+    if blk_id in blk_hashes:
+        return blocks[blk_hashes[blk_id]]
+
+    hex_str = blk_id[2:]
+    if len(hex_str) % 2 != 0:
+        hex_str = '0' + hex_str
+
+    num = eth_utils.big_endian_to_int(bytes.fromhex(hex_str))
+    return blocks[num]
+
 
 def estimate_gas(tx):
+    print('estimate_gas')
     # TODO: actually estimate gas
     return '0xffffffffff'
 
 def block_number():
-    return '0x01'
+    print('block_number')
+    return hex(len(blocks) - 1)
 
 def send_raw_transaction(tx):
+    print('send_raw_transaction')
     if tx[2:4] == '02':
         tx_buf = bytes.fromhex(tx[4:])
         txs = rlp.decode(tx_buf)
@@ -138,14 +167,18 @@ def send_raw_transaction(tx):
         y = eth_utils.big_endian_to_int(tx_dat[8])
         v = eth_utils.big_endian_to_int(tx_dat[6])
 
-        chainid_int = serialization.unpack_hex_uint256be(chain_id())
-        v -= 35 + (chainid_int * 2)
+        if v != 27 and v != 28:
+            chainid_int = serialization.unpack_hex_uint256be(chain_id())
+            v -= 35 + (chainid_int * 2)
 
-        tx_dat[6] = chainid_int
-        tx_dat[7] = bytes()
-        tx_dat[8] = bytes()
+            tx_dat[6] = chainid_int
+            tx_dat[7] = bytes()
+            tx_dat[8] = bytes()
 
-        rlp_payload = rlp.encode(tx_dat)
+            rlp_payload = rlp.encode(tx_dat)
+        else:
+            v -= 27
+            rlp_payload = rlp.encode(tx_dat[:-3])
 
     s = ecdsa.ecdsa.Signature(r, y)
     sighash = sha3.keccak_256(rlp_payload).digest()
@@ -158,30 +191,59 @@ def send_raw_transaction(tx):
     pk_buf = use_pk.point.to_bytes(encoding='uncompressed')
     addr = sha3.keccak_256(pk_buf[1:]).digest()[-20:]
 
-    t = transaction.Transaction(addr, to_addr, value, nonce, gas_price, gas_limit, input_data)
+    print(v, r, y)
+
+    t = transaction.Transaction(addr, to_addr, value, nonce, gas_price, gas_limit, input_data, v, r, y)
+    print(t.to_dict().items())
     txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
+    print(t.pack().hex())
     ret = send_transaction(t, False)
     retval = '0x' + txid
+    print(retval)
+    make_block(retval)
     receipts[retval] = ret
+    if ret.create_address is not None:
+        contract_code['0x' + ret.create_address.hex()] = ret.output_data
     return retval
 
 def get_tx_receipt(txid):
+    print('get_tx_receipt', txid)
     ret = receipts[txid].to_dict()
+    ret['transactionHash'] = txid
+    print(ret)
     return ret
 
 def client_version():
+    print('client_version')
     return 'opencbdc/v0.0'
 
 def gas_price():
+    print('gas_price')
     return '0x0'
 
 def get_tx(txid):
+    print('get_tx', txid)
     r = receipts[txid]
     tx = r.tx.to_dict()
     tx['hash'] = txid
     return tx
 
+def get_code(addr, state):
+    print('get_code', addr, state)
+    ret = '0x' + contract_code[addr].hex()
+    print(ret)
+    return ret
+
+def get_balance(addr, state):
+    print('get_balance', addr, state)
+    # TODO: implement
+    return '0xffffffff'
+
+def accounts():
+    return []
+
 def main():
+    make_block(None)
     server = rpc.SimpleJSONRPCServer((LISTEN_HOST, LISTEN_PORT))
     server.register_function(send_tx, 'eth_sendTransaction')
     server.register_function(call, 'eth_call')
@@ -195,6 +257,10 @@ def main():
     server.register_function(client_version, 'web3_clientVersion')
     server.register_function(gas_price, 'eth_gasPrice')
     server.register_function(get_tx, 'eth_getTransactionByHash')
+    server.register_function(chain_id, 'net_version')
+    server.register_function(get_code, 'eth_getCode')
+    server.register_function(get_balance, 'eth_getBalance')
+    server.register_function(accounts, 'eth_accounts')
     server.serve_forever()
 
 if __name__ == '__main__':

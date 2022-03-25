@@ -1,9 +1,10 @@
 import struct
 import serialization
 import hashlib
+import eth_utils
 
 class Transaction:
-    def __init__(self, from_addr: bytes, to_addr: bytes, value: int, nonce: int, gas_price: int, gas_limit: int, input_data: bytes):
+    def __init__(self, from_addr: bytes, to_addr: bytes, value: int, nonce: int, gas_price: int, gas_limit: int, input_data: bytes, v: int, r: int, s: int):
         # TODO: parameter checks
         self.from_addr = from_addr
         self.to_addr = to_addr
@@ -12,9 +13,16 @@ class Transaction:
         self.gas_price = gas_price
         self.gas_limit = gas_limit
         self.input_data = input_data
+        self.v = v
+        self.r = r
+        self.s = s
 
     def pack(self) -> bytes:
         ret = bytes()
+
+        # TX type
+        ret += struct.pack('B', 0)
+
         ret += self.from_addr
 
         has_to = self.to_addr is not None and len(self.to_addr) > 0
@@ -27,24 +35,41 @@ class Transaction:
         ret += serialization.pack_uint256be(self.gas_price)
         ret += serialization.pack_uint256be(self.gas_limit)
 
+        # Tip and fee cap fields
+        ret += serialization.pack_uint256be(0)
+        ret += serialization.pack_uint256be(0)
+
         if self.input_data is not None:
             ret += struct.pack('Q', len(self.input_data))
             ret += self.input_data
         else:
             ret += struct.pack('Q', 0)
 
+        # Access lists not yet implemented
+        ret += struct.pack('Q', 0)
+
+        v = eth_utils.int_to_big_endian(self.v)
+        print(v, len(v))
+        ret += bytearray(serialization.UINT256_LEN - len(v)) + v
+
+        r = eth_utils.int_to_big_endian(self.r)
+        ret += bytearray(serialization.UINT256_LEN - len(r)) + r
+
+        s = eth_utils.int_to_big_endian(self.s)
+        ret += bytearray(serialization.UINT256_LEN - len(s)) + s
+
         return ret
 
     @classmethod
     def unpack(cls, buf: bytes) -> tuple:
-        from_addr = buf[:20]
+        from_addr = buf[1:21]
         assert len(from_addr) == serialization.ADDRESS_LEN
-        has_to = struct.unpack('?', buf[20:21])[0]
+        has_to = struct.unpack('?', buf[21:22])[0]
         to_addr = None
-        offset = 21
+        offset = 22
         if has_to:
-            to_addr = buf[21:41]
-            offset = 41
+            to_addr = buf[22:42]
+            offset = 42
             assert len(to_addr) == serialization.ADDRESS_LEN
         value = serialization.unpack_uint256be(buf[offset:])
         offset += serialization.UINT256_LEN
@@ -53,12 +78,22 @@ class Transaction:
         gas_price = serialization.unpack_uint256be(buf[offset:])
         offset += serialization.UINT256_LEN
         gas_limit = serialization.unpack_uint256be(buf[offset:])
-        offset += serialization.UINT256_LEN
+        offset += 3 * serialization.UINT256_LEN
         input_data_len = struct.unpack('Q', buf[offset:offset+serialization.UINT64_LEN])[0]
         offset += serialization.UINT64_LEN
         buf_end = offset + input_data_len
         input_data = buf[offset:buf_end]
-        return (cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data), buf_end)
+        offset += input_data_len
+        (access_list_len,) = struct.unpack('Q', buf[offset:offset+serialization.UINT64_LEN])
+        assert access_list_len == 0
+        offset += serialization.UINT64_LEN
+        v = eth_utils.big_endian_to_int(buf[offset:offset+serialization.UINT256_LEN])
+        offset += serialization.UINT256_LEN
+        r = eth_utils.big_endian_to_int(buf[offset:offset+serialization.UINT256_LEN])
+        offset += serialization.UINT256_LEN
+        s = eth_utils.big_endian_to_int(buf[offset:offset+serialization.UINT256_LEN])
+        offset += serialization.UINT256_LEN
+        return (cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data, v, r, s), offset)
 
     @classmethod
     def from_json(cls, tx: dict):
@@ -85,7 +120,11 @@ class Transaction:
         if 'data' in tx:
             input_data = bytes.fromhex(tx['data'][2:])
 
-        return cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data)
+        v = eth_utils.big_endian_to_int(bytes.fromhex(tx['v'][2:]))
+        r = eth_utils.big_endian_to_int(bytes.fromhex(tx['r'][2:]))
+        s = eth_utils.big_endian_to_int(bytes.fromhex(tx['s'][2:]))
+
+        return cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data, v, r, s)
 
     def txid(self) -> bytes:
         buf = self.pack()
@@ -97,9 +136,9 @@ class Transaction:
             'to': '0x' + self.to_addr.hex() if self.to_addr is not None else None,
             'value': '0x' + serialization.pack_uint256be(self.value).hex(),
             'nonce': '0x' + serialization.pack_uint256be(self.nonce).hex(),
-            'gas': '0x' + serialization.pack_uint256be(self.gas_price).hex(),
-            'gasLimit': '0x' + serialization.pack_uint256be(self.gas_limit).hex(),
-            'data': self.input_data.hex() if self.input_data is not None else None
+            'gasPrice': '0x' + serialization.pack_uint256be(self.gas_price).hex(),
+            'gas': '0x' + serialization.pack_uint256be(self.gas_limit).hex(),
+            'data': self.input_data.hex() if self.input_data is not None else None,
         }
         return ret
 
@@ -176,7 +215,6 @@ class Receipt:
             'transaction': self.tx.to_dict(),
             'from': self.tx.from_addr.hex(),
             'to': self.tx.to_addr.hex() if self.tx.to_addr is not None else None,
-            'transactionHash': self.tx.txid().hex(),
             'contractAddress': self.create_address.hex() if self.create_address is not None else None,
             'gasUsed': '0x' + serialization.pack_uint256be(self.gas_used).hex(),
             'cumulativeGasUsed': '0x' + serialization.pack_uint256be(self.gas_used).hex(),

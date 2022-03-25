@@ -75,6 +75,8 @@ namespace cbdc::threepc::agent::runner {
 
         m_log->trace("Try_lock request returned an error, retrying");
 
+        // TODO: if the error is not "wounded", this should be fatal
+
         m_retry = true;
 
         return std::nullopt;
@@ -260,6 +262,13 @@ namespace cbdc::threepc::agent::runner {
                             res.output_data,
                             res.output_size);
                 m_accounts[new_addr] = acc;
+            }
+
+            if(msg.depth == 0) {
+                m_receipt.m_output_data.resize(res.output_size);
+                std::memcpy(m_receipt.m_output_data.data(),
+                            res.output_data,
+                            res.output_size);
             }
 
             return res;
