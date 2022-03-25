@@ -11,6 +11,7 @@
 #include "host.hpp"
 
 #include <evmc/evmc.h>
+#include <secp256k1.h>
 #include <thread>
 
 namespace cbdc::threepc::agent::runner {
@@ -38,6 +39,12 @@ namespace cbdc::threepc::agent::runner {
       private:
         std::shared_ptr<evmc::VM> m_vm;
         std::thread m_evm_thread;
+        std::unique_ptr<secp256k1_context,
+                        decltype(&secp256k1_context_destroy)>
+            m_secp{secp256k1_context_create(SECP256K1_CONTEXT_SIGN
+                                            | SECP256K1_CONTEXT_VERIFY),
+                   &secp256k1_context_destroy};
+
         uint64_t m_gas_limit{};
 
         void exec(const evmc_message& msg,

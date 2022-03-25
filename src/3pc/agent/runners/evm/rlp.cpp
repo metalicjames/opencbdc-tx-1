@@ -6,6 +6,7 @@
 #include "rlp.hpp"
 
 namespace cbdc {
+    rlp_value::rlp_value() : m_type(rlp_value_type::buffer) {}
     rlp_value::rlp_value(rlp_value_type type) : m_type(type) {}
     rlp_value::rlp_value(const buffer& data) : m_type(rlp_value_type::buffer) {
         assign(data);
@@ -21,5 +22,24 @@ namespace cbdc {
             m_values.push_back(val);
         }
         return ret;
+    }
+
+    auto rlp_value::value_at(size_t idx) const -> rlp_value {
+        return m_values.at(idx);
+    }
+
+    auto rlp_value::data() const -> const void* {
+        return m_buffer.data();
+    }
+
+    auto rlp_value::size() const -> size_t {
+        if(m_type == rlp_value_type::array) {
+            return m_values.size();
+        }
+        return m_buffer.size();
+    }
+
+    auto rlp_value::type() const -> rlp_value_type {
+        return m_type;
     }
 }

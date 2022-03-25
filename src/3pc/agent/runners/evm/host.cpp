@@ -5,6 +5,7 @@
 
 #include "host.hpp"
 
+#include "address.hpp"
 #include "crypto/sha256.h"
 #include "format.hpp"
 #include "hash.hpp"

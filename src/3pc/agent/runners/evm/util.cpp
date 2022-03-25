@@ -12,6 +12,9 @@
 #include "util/common/hash.hpp"
 #include "util/serialization/util.hpp"
 
+#include <optional>
+#include <secp256k1.h>
+
 namespace cbdc::threepc::agent::runner {
     auto to_uint64(const evmc::uint256be& v) -> uint64_t {
         return evmc::load64be(&v.bytes[sizeof(v.bytes) - sizeof(uint64_t)]);
@@ -25,6 +28,32 @@ namespace cbdc::threepc::agent::runner {
         return evmc::hex(evmc::bytes(b.bytes, sizeof(b.bytes)));
     }
 
+    auto parse_bytes32(const std::string& bytes)
+        -> std::optional<evmc::bytes32> {
+        static constexpr size_t bytes_size = 32;
+        if(bytes.size() < bytes_size * 2) {
+            return std::nullopt;
+        }
+
+        auto bytes_to_parse = bytes;
+        if(bytes_to_parse.substr(0, 2) == "0x") {
+            bytes_to_parse = bytes_to_parse.substr(2);
+        }
+        auto maybe_bytes = cbdc::buffer::from_hex(bytes_to_parse);
+        if(!maybe_bytes.has_value()) {
+            return std::nullopt;
+        }
+        if(maybe_bytes.value().size() != bytes_size) {
+            return std::nullopt;
+        }
+
+        auto bytes_val = evmc::bytes32();
+        std::memcpy(bytes_val.bytes,
+                    maybe_bytes.value().data(),
+                    maybe_bytes.value().size());
+        return bytes_val;
+    }
+
     auto tx_id(const evm_tx& tx) -> cbdc::buffer {
         auto buf = make_buffer(tx);
         auto s = CSHA256();
@@ -34,39 +63,5 @@ namespace cbdc::threepc::agent::runner {
         auto ret = cbdc::buffer();
         ret.append(h.data(), h.size());
         return ret;
-    }
-
-    auto contract_address(const evmc::address& sender,
-                          const evmc::uint256be& nonce) -> evmc::address {
-        auto new_addr = evmc::address();
-        auto buf = make_buffer(make_rlp_array(make_rlp_value(sender),
-                                              make_rlp_value(nonce, true)));
-        auto addr_hash = keccak_data(buf.data(), buf.size());
-        constexpr auto addr_offset = addr_hash.size() - sizeof(new_addr.bytes);
-        std::memcpy(new_addr.bytes,
-                    addr_hash.data() + addr_offset,
-                    sizeof(new_addr.bytes));
-        return new_addr;
-    }
-
-    auto contract_address2(const evmc::address& sender,
-                           const evmc::bytes32& salt,
-                           const cbdc::hash_t& bytecode_hash)
-        -> evmc::address {
-        auto new_addr = evmc::address();
-        auto buf = cbdc::buffer();
-        static constexpr uint8_t contract_address2_preimage_prefix = 0xFF;
-        auto b = std::byte(contract_address2_preimage_prefix);
-        buf.append(&b, sizeof(b));
-        buf.append(sender.bytes, sizeof(sender.bytes));
-        buf.append(salt.bytes, sizeof(salt.bytes));
-        buf.append(bytecode_hash.data(), bytecode_hash.size());
-
-        auto addr_hash = keccak_data(buf.data(), buf.size());
-        constexpr auto addr_offset = addr_hash.size() - sizeof(new_addr.bytes);
-        std::memcpy(new_addr.bytes,
-                    addr_hash.data() + addr_offset,
-                    sizeof(new_addr.bytes));
-        return new_addr;
     }
 }

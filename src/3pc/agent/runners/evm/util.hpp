@@ -8,10 +8,15 @@
 
 #include "messages.hpp"
 #include "util/common/buffer.hpp"
+#include "util/common/hash.hpp"
+#include "util/common/keys.hpp"
 
 #include <evmc/evmc.hpp>
 #include <evmc/hex.hpp>
-#include <util/common/hash.hpp>
+#include <memory>
+#include <secp256k1.h>
+#include <secp256k1_extrakeys.h>
+#include <secp256k1_recovery.h>
 
 namespace cbdc::threepc::agent::runner {
     auto to_uint64(const evmc::uint256be& v) -> uint64_t;
@@ -21,25 +26,31 @@ namespace cbdc::threepc::agent::runner {
         return evmc::hex(evmc::bytes(v.bytes, sizeof(v.bytes)));
     }
 
+    /// Parses hexadecimal representation in string format to T
+    /// \param hex hex string to parse. May be prefixed with 0x
+    /// \return object containing the parsed T or std::nullopt if
+    /// parse failed
+    template<typename T>
+    auto from_hex(const std::string& hex) ->
+        typename std::enable_if_t<std::is_same<T, evmc::bytes32>::value
+                                      || std::is_same<T, evmc::address>::value,
+                                  std::optional<T>> {
+        auto maybe_bytes = cbdc::buffer::from_hex_prefixed(hex);
+        if(!maybe_bytes.has_value()) {
+            return std::nullopt;
+        }
+        if(maybe_bytes.value().size() != sizeof(T)) {
+            return std::nullopt;
+        }
+
+        auto val = T();
+        std::memcpy(val.bytes,
+                    maybe_bytes.value().data(),
+                    maybe_bytes.value().size());
+        return val;
+    }
+
     auto tx_id(const evm_tx& tx) -> cbdc::buffer;
-
-    /// Calculates a contract address for the CREATE call
-    /// keccak256(rlp([sender,nonce]))
-    /// \param sender the sender account creating the contract
-    /// \param nonce the account nonce of the sender at the time of creation
-    /// \return the contract address
-    auto contract_address(const evmc::address& sender,
-                          const evmc::uint256be& nonce) -> evmc::address;
-
-    /// Calculates a contract address for the CREATE2 call
-    /// keccak256(0xFF | sender | salt | keccak256(bytecode))
-    /// \param sender the sender account creating the contract
-    /// \param salt the salt value
-    /// \param bytecode_hash the keccak256 hash of the bytecode of the contract
-    /// \return the contract address
-    auto contract_address2(const evmc::address& sender,
-                           const evmc::bytes32& salt,
-                           const cbdc::hash_t& bytecode_hash) -> evmc::address;
 }
 
 #endif

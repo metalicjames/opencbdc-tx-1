@@ -81,4 +81,23 @@ namespace cbdc {
 
         return vec;
     }
+
+    auto rlp_encode_access_list(
+        const threepc::agent::runner::evm_access_list& access_list)
+        -> rlp_value {
+        auto rlp_access_list
+            = rlp_value(rlp_value_type::array); // empty by default
+        if(!access_list.empty()) {
+            for(const auto& access_tuple : access_list) {
+                auto storage_keys = rlp_value(rlp_value_type::array);
+                for(const auto& storage_key : access_tuple.m_storage_keys) {
+                    storage_keys.push_back(make_rlp_value(storage_key));
+                }
+                rlp_access_list.push_back(
+                    make_rlp_array(make_rlp_value(access_tuple.m_address),
+                                   storage_keys));
+            }
+        }
+        return rlp_access_list;
+    }
 }
