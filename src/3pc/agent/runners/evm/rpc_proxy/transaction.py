@@ -120,9 +120,9 @@ class Transaction:
         if 'data' in tx:
             input_data = bytes.fromhex(tx['data'][2:])
 
-        v = eth_utils.big_endian_to_int(bytes.fromhex(tx['v'][2:]))
-        r = eth_utils.big_endian_to_int(bytes.fromhex(tx['r'][2:]))
-        s = eth_utils.big_endian_to_int(bytes.fromhex(tx['s'][2:]))
+        v = eth_utils.big_endian_to_int(bytes.fromhex(tx['v'][2:])) if 'v' in tx else 0
+        r = eth_utils.big_endian_to_int(bytes.fromhex(tx['r'][2:])) if 'r' in tx else 0
+        s = eth_utils.big_endian_to_int(bytes.fromhex(tx['s'][2:])) if 's' in tx else 0
 
         return cls(from_addr, to_addr, value, nonce, gas_price, gas_limit, input_data, v, r, s)
 

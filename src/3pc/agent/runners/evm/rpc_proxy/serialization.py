@@ -1,4 +1,4 @@
-from multiprocessing.sharedctypes import Value
+import eth_utils
 import struct
 
 UINT256_LEN = 32
@@ -21,11 +21,11 @@ def unpack_uint256be(buf: bytes) -> int:
     return val
 
 def unpack_hex_uint256be(dat: str) -> int:
-    if dat[:2] == '0x':
-        dat = dat[2:]
-    buf = bytes.fromhex(dat)
-    ext_buf = bytearray(UINT64_LEN - len(buf)) + buf
-    val = struct.unpack('>Q', ext_buf)[0]
+    un_prefixed = eth_utils.remove_0x_prefix(dat)
+    if len(un_prefixed) % 2 != 0:
+        un_prefixed = '0' + un_prefixed
+    buf = bytes.fromhex(un_prefixed)
+    val = eth_utils.big_endian_to_int(buf)
     return val
 
 def pack_bytes(dat: bytes) -> bytes:

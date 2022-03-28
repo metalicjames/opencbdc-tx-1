@@ -242,6 +242,35 @@ def get_balance(addr, state):
 def accounts():
     return []
 
+def get_logs(params):
+    print('get_logs', params)
+    ret = set()
+
+    addr_bytes = None
+    if 'address' in params:
+        addr_bytes = bytes.fromhex(params['address'][2:])
+
+    topics = []
+    if 'topics' in params:
+        for t in params['topics']:
+            if t is None:
+                continue
+            t_bytes = bytes.fromhex(t[2:])
+            topics.append(t_bytes)
+
+    for r in receipts.values():
+        for l in r.logs:
+            if addr_bytes is not None and l.addr == addr_bytes:
+                ret.add(l)
+                continue
+            for t in topics:
+                if t in l.topics:
+                    ret.add(l)
+                    break
+
+    return [r.to_dict() for r in ret]
+
+
 def main():
     make_block(None)
     server = rpc.SimpleJSONRPCServer((LISTEN_HOST, LISTEN_PORT))
@@ -261,6 +290,7 @@ def main():
     server.register_function(get_code, 'eth_getCode')
     server.register_function(get_balance, 'eth_getBalance')
     server.register_function(accounts, 'eth_accounts')
+    server.register_function(get_logs, 'eth_getLogs')
     server.serve_forever()
 
 if __name__ == '__main__':
