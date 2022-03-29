@@ -237,7 +237,7 @@ def get_code(addr, state):
 def get_balance(addr, state):
     print('get_balance', addr, state)
     # TODO: implement
-    return '0xffffffff'
+    return '0xffffffffffffffffffffffffffffff'
 
 def accounts():
     return []

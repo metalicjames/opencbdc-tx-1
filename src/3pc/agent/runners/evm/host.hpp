@@ -118,6 +118,8 @@ namespace cbdc::threepc::agent::runner {
         void transfer(const evmc::address& from,
                       const evmc::address& to,
                       const evmc::uint256be& value);
+
+        static auto is_precompile(const evmc::address& addr) -> bool;
     };
 }
 

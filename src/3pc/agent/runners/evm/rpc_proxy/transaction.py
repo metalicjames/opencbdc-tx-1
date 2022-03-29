@@ -168,7 +168,7 @@ class Log:
         ret = {
             'address': '0x' + self.addr.hex(),
             'data': self.data.hex(),
-            'topics': [t.hex() for t in self.topics],
+            'topics': ['0x' + t.hex() for t in self.topics],
             'transactionIndex': '0x0',
             'blockNumber': '0x1',
             'transactionHash': bytearray(32).hex(),

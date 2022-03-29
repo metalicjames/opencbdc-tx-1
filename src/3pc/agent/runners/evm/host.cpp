@@ -34,6 +34,14 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_account(const evmc::address& addr) const
         -> std::optional<evm_account> {
+        m_log->trace("EVM request account:", to_hex(addr));
+
+        if(is_precompile(addr)) {
+            // Precompile contract, return empty account
+            m_accessed_addresses.insert(addr);
+            return evm_account{};
+        }
+
         auto it = m_accounts.find(addr);
         if(it != m_accounts.end()) {
             return it->second;
@@ -84,6 +92,7 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::account_exists(const evmc::address& addr) const noexcept
         -> bool {
+        m_log->trace("EVM account exists:", to_hex(addr));
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return false;
@@ -151,6 +160,7 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_balance(const evmc::address& addr) const noexcept
         -> evmc::uint256be {
+        m_log->trace("EVM get_balance:", to_hex(addr));
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return {};
@@ -161,6 +171,12 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_code_size(const evmc::address& addr) const noexcept
         -> size_t {
+        m_log->trace("EVM get_code_size:", to_hex(addr));
+        if(is_precompile(addr)) {
+            // Precompiles have no code, but this should be non-zero for the
+            // call to work
+            return 1;
+        }
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return {};
@@ -171,6 +187,7 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_code_hash(const evmc::address& addr) const noexcept
         -> evmc::bytes32 {
+        m_log->trace("EVM get_code_hash:", to_hex(addr));
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return {};
@@ -187,6 +204,7 @@ namespace cbdc::threepc::agent::runner {
                              size_t code_offset,
                              uint8_t* buffer_data,
                              size_t buffer_size) const noexcept -> size_t {
+        m_log->trace("EVM copy_code:", to_hex(addr), code_offset);
         auto maybe_acc = get_account(addr);
         if(!maybe_acc.has_value()) {
             return 0;
@@ -207,6 +225,7 @@ namespace cbdc::threepc::agent::runner {
 
     void evm_host::selfdestruct(const evmc::address& addr,
                                 const evmc::address& beneficiary) noexcept {
+        m_log->trace("EVM selfdestruct:", to_hex(addr), to_hex(beneficiary));
         transfer(addr, beneficiary, evmc::uint256be{});
     }
 
@@ -300,6 +319,15 @@ namespace cbdc::threepc::agent::runner {
             = copy_code(code_addr, 0, code_buf.data(), code_buf.size());
         assert(n == code_size);
 
+        auto inp = cbdc::buffer();
+        inp.append(msg.input_data, msg.input_size);
+        m_log->trace("EVM call:",
+                     to_hex(code_addr),
+                     msg.kind,
+                     msg.flags,
+                     msg.depth,
+                     inp.to_hex());
+
         auto res = m_vm->execute(*this,
                                  EVMC_LATEST_STABLE_REVISION,
                                  msg,
@@ -347,6 +375,7 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::access_account(const evmc::address& addr) noexcept
         -> evmc_access_status {
+        m_log->trace("EVM access_account:", to_hex(addr));
         if(m_accessed_addresses.find(addr) != m_accessed_addresses.end()) {
             return EVMC_ACCESS_WARM;
         }
@@ -357,6 +386,7 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::access_storage(const evmc::address& addr,
                                   const evmc::bytes32& key) noexcept
         -> evmc_access_status {
+        m_log->trace("EVM access_storage:", to_hex(addr), to_hex(key));
         auto elem = std::make_pair(addr, key);
         if(m_accessed_storage_keys.find(elem)
            != m_accessed_storage_keys.end()) {
@@ -450,5 +480,11 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_tx_receipt() const -> evm_tx_receipt {
         return m_receipt;
+    }
+
+    auto evm_host::is_precompile(const evmc::address& addr) -> bool {
+        auto addr_copy = addr;
+        std::memset(&addr_copy.bytes[18], 0, 2);
+        return evmc::is_zero(addr_copy);
     }
 }
