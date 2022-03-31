@@ -485,6 +485,6 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::is_precompile(const evmc::address& addr) -> bool {
         auto addr_copy = addr;
         std::memset(&addr_copy.bytes[18], 0, 2);
-        return evmc::is_zero(addr_copy);
+        return evmc::is_zero(addr_copy) && addr.bytes[19] != 0;
     }
 }
