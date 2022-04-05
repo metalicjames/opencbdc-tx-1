@@ -1,5 +1,5 @@
 eth_utils
 rlp
-jsonrpclib
+ajsonrpc
 ecdsa
 pysha3

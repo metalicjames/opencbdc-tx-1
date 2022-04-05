@@ -1,7 +1,7 @@
-import socket
 import struct
-import jsonrpclib.SimpleJSONRPCServer as rpc
 import random
+import asyncio
+import ajsonrpc
 
 import transaction
 import wire
@@ -14,7 +14,7 @@ import sha3
 import eth_utils
 
 HOST = ''
-PORT = 6667
+PORT = 6666
 LISTEN_HOST = ''
 LISTEN_PORT = 8080
 
@@ -24,36 +24,60 @@ blocks = []
 blk_hashes = {}
 contract_code = {}
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((HOST, PORT))
+requests = {}
 
-def recv_data(id):
-    sz_dat = sock.recv(8)
+loop = asyncio.get_event_loop()
+
+async def connect():
+    return await asyncio.open_connection(HOST, PORT)
+
+reader, writer = loop.run_until_complete(connect())
+
+async def do_recv():
+    sz_dat = await reader.readexactly(8)
     sz = struct.unpack('Q', sz_dat)[0]
 
-    resp_dat = sock.recv(sz)
-    assert resp_dat[:8] == id
+    resp_dat = await reader.readexactly(sz)
+    resp_id = resp_dat[:8]
+    resp_fut = requests.get(resp_id)
+    assert resp_fut is not None
 
     (success,) = struct.unpack('?', resp_dat[8:9])
-    if not success:
-        return None
+    resp_fut.set_result((success, resp_dat[9:]))
+    print('got resp', resp_id.hex(), success)
+    loop.create_task(do_recv())
 
-    return resp_dat[9:]
 
-def send_req(payload):
+async def recv_data(fut, req_id):
+    await fut
+    del requests[req_id]
+    return fut.result()
+
+
+async def send_req(payload):
     req_id = random.randbytes(8)
     req_sz = len(req_id) + len(payload)
     req = struct.pack('Q', req_sz)
     req += req_id
     req += payload
 
-    sock.sendall(req)
+    fut = loop.create_future()
+    requests[req_id] = fut
 
-    return recv_data(req_id)
+    writer.write(req)
+    await writer.drain()
 
-def send_transaction(tx, dry_run):
+    print('awaiting recv')
+    res = await recv_data(fut, req_id)
+    return res
+
+async def send_transaction(tx, dry_run):
     exec_req = wire.Request(tx.from_addr, tx.pack(), dry_run)
-    resp = send_req(exec_req.pack())
+    print('awaiting send')
+    (success, resp) = await send_req(exec_req.pack())
+    if not success:
+        raise RuntimeError('RPC request failed')
+    print('got resp in send', resp)
 
     r = wire.Response.unpack(resp)
     if r.success is not None:
@@ -67,16 +91,16 @@ def send_transaction(tx, dry_run):
 
     raise RuntimeError(r.failure)
 
-def call(param, state):
+async def call(param, state):
     print('call', param.items())
     tx = transaction.Transaction.from_json(param)
-    res = send_transaction(tx, True)
+    res = await send_transaction(tx, True)
     return '0x' + res.output_data.hex()
 
-def send_tx(param):
+async def send_tx(param):
     print('send_tx')
     tx = transaction.Transaction.from_json(param)
-    return send_transaction(tx, False)
+    return await send_transaction(tx, False)
 
 def chain_id():
     print('chain_id')
@@ -136,7 +160,7 @@ def block_number():
     print('block_number')
     return hex(len(blocks) - 1)
 
-def send_raw_transaction(tx):
+async def send_raw_transaction(tx):
     print('send_raw_transaction')
     if tx[2:4] == '02':
         tx_buf = bytes.fromhex(tx[4:])
@@ -145,8 +169,8 @@ def send_raw_transaction(tx):
         nonce = serialization.unpack_uint256be(txs[1])
         gas_price = serialization.unpack_uint256be(txs[3])
         gas_limit = serialization.unpack_uint256be(txs[4])
-        to_addr = tx_dat[5]
-        input_data = tx_dat[7]
+        to_addr = txs[5]
+        input_data = txs[7]
 
         r = eth_utils.big_endian_to_int(txs[10])
         y = eth_utils.big_endian_to_int(txs[11])
@@ -197,13 +221,16 @@ def send_raw_transaction(tx):
     print(t.to_dict().items())
     txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
     print(t.pack().hex())
-    ret = send_transaction(t, False)
+    print('awaiting')
+    ret = await send_transaction(t, False)
+    print('got res')
     retval = '0x' + txid
     print(retval)
     make_block(retval)
     receipts[retval] = ret
     if ret.create_address is not None:
         contract_code['0x' + ret.create_address.hex()] = ret.output_data
+    print('returning', ret)
     return retval
 
 def get_tx_receipt(txid):
@@ -271,27 +298,81 @@ def get_logs(params):
     return [r.to_dict() for r in ret]
 
 
+class JSONRPCProtocol(asyncio.Protocol):
+    def __init__(self, json_rpc_manager):
+        self.json_rpc_manager = json_rpc_manager
+
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def data_received(self, data):
+        message = data.decode()
+        request_method, request_message = message.split('\r\n', 1)
+        if not request_method.startswith('POST'):
+            print('Incorrect HTTP method, should be POST')
+
+        _, payload = request_message.split('\r\n\r\n', 1)
+        task = asyncio.create_task(self.json_rpc_manager.get_payload_for_payload(payload))
+        task.add_done_callback(self.handle_task_result)
+
+    def handle_task_result(self, task):
+        res = task.result()
+        print(res)
+        self.transport.write((
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            "\r\n"
+            +  str(res)
+        ).encode("utf-8"))
+
+        self.transport.close()
+
 def main():
     make_block(None)
-    server = rpc.SimpleJSONRPCServer((LISTEN_HOST, LISTEN_PORT))
-    server.register_function(send_tx, 'eth_sendTransaction')
-    server.register_function(call, 'eth_call')
-    server.register_function(chain_id, 'eth_chainId')
-    server.register_function(get_block, 'eth_getBlockByNumber')
-    server.register_function(tx_count, 'eth_getTransactionCount')
-    server.register_function(estimate_gas, 'eth_estimateGas')
-    server.register_function(block_number, 'eth_blockNumber')
-    server.register_function(send_raw_transaction, 'eth_sendRawTransaction')
-    server.register_function(get_tx_receipt, 'eth_getTransactionReceipt')
-    server.register_function(client_version, 'web3_clientVersion')
-    server.register_function(gas_price, 'eth_gasPrice')
-    server.register_function(get_tx, 'eth_getTransactionByHash')
-    server.register_function(chain_id, 'net_version')
-    server.register_function(get_code, 'eth_getCode')
-    server.register_function(get_balance, 'eth_getBalance')
-    server.register_function(accounts, 'eth_accounts')
-    server.register_function(get_logs, 'eth_getLogs')
-    server.serve_forever()
+
+    d = ajsonrpc.dispatcher.Dispatcher()
+    d['eth_sendTransaction'] = send_tx
+    d['eth_call'] = call
+    d['eth_chainId'] = chain_id
+    d['eth_getBlockByNumber'] = get_block
+    d['eth_getTransactionCount'] = tx_count
+    d['eth_estimateGas'] = estimate_gas
+    d['eth_blockNumber'] = block_number
+    d['eth_sendRawTransaction'] = send_raw_transaction
+    d['eth_getTransactionReceipt'] = get_tx_receipt
+    d['web3_clientVersion'] = client_version
+    d['eth_gasPrice'] = gas_price
+    d['eth_getTransactionByHash'] = get_tx
+    d['net_version'] = chain_id
+    d['eth_getCode'] = get_code
+    d['eth_getBalance'] = get_balance
+    d['eth_accounts'] = accounts
+    d['eth_getLogs'] = get_logs
+
+    json_rpc_manager = ajsonrpc.manager.AsyncJSONRPCResponseManager(dispatcher=d, is_server_error_verbose=True)
+    # Each client connection will create a new protocol instance
+    coro = loop.create_server(
+        lambda: JSONRPCProtocol(json_rpc_manager),
+        host=LISTEN_HOST,
+        port=LISTEN_PORT
+    )
+    server = loop.run_until_complete(coro)
+    loop.create_task(do_recv())
+
+    # Serve requests until Ctrl+C is pressed
+    print('Serving on {}'.format(server.sockets[0].getsockname()))
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+
+    # Close the server
+    server.close()
+    loop.run_until_complete(server.wait_closed())
+    writer.close()
+    loop.run_until_complete(writer.wait_closed())
+    loop.close()
+
 
 if __name__ == '__main__':
     main()
