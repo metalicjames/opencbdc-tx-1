@@ -4,6 +4,8 @@ import asyncio
 import ajsonrpc
 import sys
 import getopt
+import h11
+
 import transaction
 import wire
 import time
@@ -350,33 +352,81 @@ def get_logs(params):
 
 class JSONRPCProtocol(asyncio.Protocol):
     def __init__(self, json_rpc_manager):
+        self.connection = h11.Connection(h11.SERVER)
         self.json_rpc_manager = json_rpc_manager
+        self.request_body = ''
 
     def connection_made(self, transport):
         self.transport = transport
 
-    def data_received(self, data):
-        message = data.decode()
-        request_method, request_message = message.split('\r\n', 1)
-        if not request_method.startswith('POST'):
-            print('Incorrect HTTP method, should be POST')
+    def data_received(self, data: bytes):
+        if self.connection.our_state is h11.MUST_CLOSE:
+            self.transport.close()
+            return
 
-        _, payload = request_message.split('\r\n\r\n', 1)
-        task = asyncio.create_task(
-            self.json_rpc_manager.get_payload_for_payload(payload))
-        task.add_done_callback(self.handle_task_result)
+        print('got data', len(data))
+        self.connection.receive_data(data)
+        self.deliver_events()
+
+    def deliver_events(self):
+        more_events = True
+        while more_events:
+            event = self.connection.next_event()
+            more_events = self.handle_event(event)
+
+    def handle_event(self, event) -> bool:
+        print('got HTTP event', type(event))
+        if isinstance(event, h11.Request):
+            if event.method != b'POST':
+                raise RuntimeError('Method must be POST')
+            if len(self.request_body) != 0:
+                raise RuntimeError('Already a pending request')
+            return True
+
+        if isinstance(event, h11.Data):
+            self.request_body += event.data.decode('utf-8')
+            return True
+
+        if isinstance(event, h11.EndOfMessage):
+            task = asyncio.create_task(
+                self.json_rpc_manager.get_payload_for_payload(
+                    self.request_body))
+            task.add_done_callback(self.handle_task_result)
+            self.request_body = ''
+            return True
+
+        if isinstance(event, h11.ConnectionClosed):
+            return False
+
+        if event is h11.NEED_DATA:
+            if self.connection.client_is_waiting_for_100_continue:
+                self.send(h11.InformationalResponse(status_code=100))
+            return False
+
+        if event is h11.PAUSED:
+            # Still waiting for previous response, apply backpressure
+            self.transport.pause_reading()
+            return False
+
+        raise RuntimeError('Unknown HTTP event', event)
 
     def handle_task_result(self, task):
         res = task.result()
-        print(res)
-        self.transport.write((
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            "\r\n"
-            + str(res)
-        ).encode("utf-8"))
+        headers = [('content-type', 'application/json'),
+                   ('content-length', str(len(res)))]
+        response = h11.Response(status_code=200, headers=headers)
+        self.send(response)
+        self.send(h11.Data(data=res.encode('utf-8')))
+        self.send(h11.EndOfMessage())
 
-        self.transport.close()
+        if self.connection.our_state == h11.DONE and self.connection.their_state == h11.DONE:
+            self.connection.start_next_cycle()
+            self.deliver_events()
+            self.transport.resume_reading()
+
+    def send(self, event):
+        data = self.connection.send(event)
+        self.transport.write(data)
 
 
 def main():
