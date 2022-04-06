@@ -2,21 +2,42 @@ import struct
 import random
 import asyncio
 import ajsonrpc
-
+import sys
+import getopt
 import transaction
 import wire
 import time
 import serialization
-
 import rlp
 import ecdsa
 import sha3
 import eth_utils
 
-HOST = ''
-PORT = 6666
-LISTEN_HOST = ''
-LISTEN_PORT = 8080
+agent_host = '127.0.0.1'
+agent_port = 6666
+listen_host = '0.0.0.0'
+listen_port = 8080
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:o:", [
+                               "agent_host=", "agent_port=", "listen_host=", "listen_port="])
+except getopt.GetoptError:
+    print('rpc_proxy.py --agent_host <agent host> --agent_port <agent port> --listen_host <listen host> --listen_port <listen_port>')
+    sys.exit(2)
+for opt, arg in opts:
+    if opt == '-h':
+        print('rpc_proxy.py --agent_host <agent host> --agent_port <agent port> --listen_host <listen host> --listen_port <listen_port>')
+        sys.exit()
+    elif opt in ("-ah", "--agent_host"):
+        agent_host = arg
+    elif opt in ("-ap", "--agent_port"):
+        agent_port = arg
+    elif opt in ("-lh", "--listen_host"):
+        listen_host = arg
+    elif opt in ("-lp", "--listen_port"):
+        listen_port = arg
+print('connecting to agent on:', str(agent_host) + ":" + str(agent_port))
+print('rpc proxy listening on:', str(listen_host) + ":" + str(listen_port))
 
 addrs = {}
 receipts = {}
@@ -28,10 +49,12 @@ requests = {}
 
 loop = asyncio.get_event_loop()
 
+
 async def connect():
-    return await asyncio.open_connection(HOST, PORT)
+    return await asyncio.open_connection(agent_host, agent_port)
 
 reader, writer = loop.run_until_complete(connect())
+
 
 async def do_recv():
     sz_dat = await reader.readexactly(8)
@@ -71,6 +94,7 @@ async def send_req(payload):
     res = await recv_data(fut, req_id)
     return res
 
+
 async def send_transaction(tx, dry_run):
     exec_req = wire.Request(tx.from_addr, tx.pack(), dry_run)
     print('awaiting send')
@@ -91,20 +115,24 @@ async def send_transaction(tx, dry_run):
 
     raise RuntimeError(r.failure)
 
+
 async def call(param, state):
     print('call', param.items())
     tx = transaction.Transaction.from_json(param)
     res = await send_transaction(tx, True)
     return '0x' + res.output_data.hex()
 
+
 async def send_tx(param):
     print('send_tx')
     tx = transaction.Transaction.from_json(param)
     return await send_transaction(tx, False)
 
+
 def chain_id():
     print('chain_id')
     return '0xcbdc'
+
 
 def tx_count(address, block):
     print('tx_count', address, block)
@@ -113,6 +141,7 @@ def tx_count(address, block):
     if addr_buf in addrs:
         return hex(addrs[addr_buf])
     return hex(1)
+
 
 def make_block(txid):
     null_hash = bytearray(32).hex()
@@ -137,6 +166,7 @@ def make_block(txid):
     blk_hashes['latest'] = len(blocks)
     blocks.append(blk)
 
+
 def get_block(blk_id, full):
     print('get_block', blk_id, full)
     assert full is False
@@ -156,9 +186,11 @@ def estimate_gas(tx):
     # TODO: actually estimate gas
     return '0xffffffffff'
 
+
 def block_number():
     print('block_number')
     return hex(len(blocks) - 1)
+
 
 async def send_raw_transaction(tx):
     print('send_raw_transaction')
@@ -217,7 +249,17 @@ async def send_raw_transaction(tx):
 
     print(v, r, y)
 
-    t = transaction.Transaction(addr, to_addr, value, nonce, gas_price, gas_limit, input_data, v, r, y)
+    t = transaction.Transaction(
+        addr,
+        to_addr,
+        value,
+        nonce,
+        gas_price,
+        gas_limit,
+        input_data,
+        v,
+        r,
+        y)
     print(t.to_dict().items())
     txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
     print(t.pack().hex())
@@ -233,6 +275,7 @@ async def send_raw_transaction(tx):
     print('returning', ret)
     return retval
 
+
 def get_tx_receipt(txid):
     print('get_tx_receipt', txid)
     ret = receipts[txid].to_dict()
@@ -240,13 +283,16 @@ def get_tx_receipt(txid):
     print(ret)
     return ret
 
+
 def client_version():
     print('client_version')
     return 'opencbdc/v0.0'
 
+
 def gas_price():
     print('gas_price')
     return '0x0'
+
 
 def get_tx(txid):
     print('get_tx', txid)
@@ -255,19 +301,23 @@ def get_tx(txid):
     tx['hash'] = txid
     return tx
 
+
 def get_code(addr, state):
     print('get_code', addr, state)
     ret = '0x' + contract_code[addr].hex()
     print(ret)
     return ret
 
+
 def get_balance(addr, state):
     print('get_balance', addr, state)
     # TODO: implement
     return '0xffffffffffffffffffffffffffffff'
 
+
 def accounts():
     return []
+
 
 def get_logs(params):
     print('get_logs', params)
@@ -312,7 +362,8 @@ class JSONRPCProtocol(asyncio.Protocol):
             print('Incorrect HTTP method, should be POST')
 
         _, payload = request_message.split('\r\n\r\n', 1)
-        task = asyncio.create_task(self.json_rpc_manager.get_payload_for_payload(payload))
+        task = asyncio.create_task(
+            self.json_rpc_manager.get_payload_for_payload(payload))
         task.add_done_callback(self.handle_task_result)
 
     def handle_task_result(self, task):
@@ -322,10 +373,11 @@ class JSONRPCProtocol(asyncio.Protocol):
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: application/json\r\n"
             "\r\n"
-            +  str(res)
+            + str(res)
         ).encode("utf-8"))
 
         self.transport.close()
+
 
 def main():
     make_block(None)
@@ -349,12 +401,13 @@ def main():
     d['eth_accounts'] = accounts
     d['eth_getLogs'] = get_logs
 
-    json_rpc_manager = ajsonrpc.manager.AsyncJSONRPCResponseManager(dispatcher=d, is_server_error_verbose=True)
+    json_rpc_manager = ajsonrpc.manager.AsyncJSONRPCResponseManager(
+        dispatcher=d, is_server_error_verbose=True)
     # Each client connection will create a new protocol instance
     coro = loop.create_server(
         lambda: JSONRPCProtocol(json_rpc_manager),
-        host=LISTEN_HOST,
-        port=LISTEN_PORT
+        host=listen_host,
+        port=listen_port
     )
     server = loop.run_until_complete(coro)
     loop.create_task(do_recv())
@@ -376,4 +429,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

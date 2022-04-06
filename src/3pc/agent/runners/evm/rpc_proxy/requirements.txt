@@ -3,3 +3,4 @@ rlp
 ajsonrpc
 ecdsa
 pysha3
+ajsonrpc

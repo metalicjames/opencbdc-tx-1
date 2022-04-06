@@ -1,0 +1,77 @@
+version: '3'
+
+services:
+
+  agent0:
+    build: .
+    image: opencbdc-tx
+    tty: true
+    restart: always
+    command: ./build/src/3pc/agent/agentd --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
+    ports:
+      - 6666:6666
+    depends_on:
+      - ticket0
+      - shard0
+    networks:
+      - 3pc-network
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 5555"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ticket0:
+    build: .
+    image: opencbdc-tx
+    tty: true
+    command: ./build/src/3pc/ticket_machine/ticket_machined --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
+    networks:
+      - 3pc-network
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 7777"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  shard0:
+    build: .
+    image: opencbdc-tx
+    tty: true
+    command: ./build/src/3pc/runtime_locking_shard/runtime_locking_shardd --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
+    ports:
+      - 6767:6767
+    networks:
+      - 3pc-network
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 6666"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  rpc0:
+    build: .
+    image: opencbdc-tx
+    restart: always
+    tty: true
+    command: python3 src/3pc/agent/runners/evm/rpc_proxy/rpc_proxy.py --agent_host=agent0 --agent_port=6666
+    expose:
+      - 8080
+    ports:
+      - 8080:8080
+    depends_on:
+      - ticket0
+      - shard0
+      - agent0
+    networks:
+      - 3pc-network
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  3pc-network:
+    name: 3pc-network

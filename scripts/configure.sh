@@ -21,11 +21,11 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  brew install leveldb llvm@11 googletest lcov make
+  brew install leveldb llvm@11 googletest lcov make python3
   echo -e "${cyan}To run clang-tidy, you must add it to your path. Ex: ln -s /usr/local/opt/llvm@11/bin/clang-tidy /usr/local/bin/clang-tidy${end}"
 else
   apt update
-  apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common unzip
+  apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common unzip python pip
 
   # GitHub Actions in .github/workflows/validation.yml will attempt to cache and reuse leveldb built in this block.
   # If a folder called leveldb-1.22 exists, skip the build step and go straight to install.
@@ -129,3 +129,6 @@ cmake -DETHASH_BUILD_ETHASH=OFF -DETHASH_BUILD_TESTS=OFF ..
 cmake --build . --parallel
 cp ./lib/keccak/libkeccak.a /usr/local/lib
 cp -r ../include/ethash /usr/local/include
+cd ../..
+
+pip3 install -r src/3pc/agent/runners/evm/rpc_proxy/requirements.txt
