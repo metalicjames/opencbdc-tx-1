@@ -2,10 +2,8 @@ import struct
 import random
 import asyncio
 import ajsonrpc
-import sys
-import getopt
 import h11
-
+import argparse
 import transaction
 import wire
 import time
@@ -14,32 +12,6 @@ import rlp
 import ecdsa
 import sha3
 import eth_utils
-
-agent_host = '127.0.0.1'
-agent_port = 6666
-listen_host = '0.0.0.0'
-listen_port = 8080
-
-try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:o:", [
-                               "agent_host=", "agent_port=", "listen_host=", "listen_port="])
-except getopt.GetoptError:
-    print('rpc_proxy.py --agent_host <agent host> --agent_port <agent port> --listen_host <listen host> --listen_port <listen_port>')
-    sys.exit(2)
-for opt, arg in opts:
-    if opt == '-h':
-        print('rpc_proxy.py --agent_host <agent host> --agent_port <agent port> --listen_host <listen host> --listen_port <listen_port>')
-        sys.exit()
-    elif opt in ("-ah", "--agent_host"):
-        agent_host = arg
-    elif opt in ("-ap", "--agent_port"):
-        agent_port = arg
-    elif opt in ("-lh", "--listen_host"):
-        listen_host = arg
-    elif opt in ("-lp", "--listen_port"):
-        listen_port = arg
-print('connecting to agent on:', str(agent_host) + ":" + str(agent_port))
-print('rpc proxy listening on:', str(listen_host) + ":" + str(listen_port))
 
 addrs = {}
 receipts = {}
@@ -50,12 +22,12 @@ contract_code = {}
 requests = {}
 
 loop = asyncio.get_event_loop()
+reader = None
+writer = None
 
 
-async def connect():
+async def connect(agent_host, agent_port):
     return await asyncio.open_connection(agent_host, agent_port)
-
-reader, writer = loop.run_until_complete(connect())
 
 
 async def do_recv():
@@ -430,6 +402,22 @@ class JSONRPCProtocol(asyncio.Protocol):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--agent_host', default='127.0.0.1')
+    parser.add_argument('--agent_port', type=int, default=6666)
+    parser.add_argument('--listen_host', default='0.0.0.0')
+    parser.add_argument('--listen_port', type=int, default=8080)
+    args = parser.parse_args()
+    print('connecting to agent on:',
+          args.agent_host + ":" + str(args.agent_port))
+    print('rpc proxy listening on:',
+          args.listen_host + ":" + str(args.listen_port))
+
+    # TODO: convert this file to a class and remove the globals
+    global reader, writer
+    reader, writer = loop.run_until_complete(
+        connect(args.agent_host, args.agent_port))
+
     make_block(None)
 
     d = ajsonrpc.dispatcher.Dispatcher()
@@ -456,8 +444,8 @@ def main():
     # Each client connection will create a new protocol instance
     coro = loop.create_server(
         lambda: JSONRPCProtocol(json_rpc_manager),
-        host=listen_host,
-        port=listen_port
+        host=args.listen_host,
+        port=args.listen_port
     )
     server = loop.run_until_complete(coro)
     loop.create_task(do_recv())
