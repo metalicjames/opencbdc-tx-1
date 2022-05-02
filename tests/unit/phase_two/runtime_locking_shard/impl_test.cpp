@@ -603,3 +603,120 @@ TEST(runtime_locking_shard_test, double_prepare_test) {
         });
     ASSERT_TRUE(maybe_success);
 }
+
+TEST(runtime_locking_shard_test, upgrade_lock_test) {
+    auto log = std::make_shared<cbdc::logging::log>(
+        cbdc::logging::log_level::trace);
+    auto shard = cbdc::threepc::runtime_locking_shard::impl(log);
+
+    auto ticket_number = 2;
+    auto key = cbdc::buffer::from_hex("aa").value();
+
+    auto maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::read,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::value_type>(ret));
+            auto exp = cbdc::buffer();
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::value_type>(
+                    ret),
+                exp);
+        });
+    ASSERT_TRUE(maybe_success);
+
+    ticket_number = 1;
+    maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::read,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::value_type>(ret));
+            auto exp = cbdc::buffer();
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::value_type>(
+                    ret),
+                exp);
+        });
+    ASSERT_TRUE(maybe_success);
+
+    maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::write,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::value_type>(ret));
+            auto exp = cbdc::buffer();
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::value_type>(
+                    ret),
+                exp);
+        });
+    ASSERT_TRUE(maybe_success);
+
+    ticket_number = 2;
+    maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::write,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::error_code>(ret));
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::error_code>(
+                    ret),
+                cbdc::threepc::runtime_locking_shard::error_code::wounded);
+        });
+    ASSERT_TRUE(maybe_success);
+
+    ticket_number = 1;
+    maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::write,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::error_code>(ret));
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::error_code>(
+                    ret),
+                cbdc::threepc::runtime_locking_shard::error_code::lock_held);
+        });
+    ASSERT_TRUE(maybe_success);
+
+    maybe_success = shard.try_lock(
+        ticket_number,
+        0,
+        key,
+        cbdc::threepc::runtime_locking_shard::lock_type::read,
+        [&](cbdc::threepc::runtime_locking_shard::interface::
+                try_lock_return_type ret) {
+            ASSERT_TRUE(
+                std::holds_alternative<
+                    cbdc::threepc::runtime_locking_shard::error_code>(ret));
+            ASSERT_EQ(
+                std::get<cbdc::threepc::runtime_locking_shard::error_code>(
+                    ret),
+                cbdc::threepc::runtime_locking_shard::error_code::lock_held);
+        });
+    ASSERT_TRUE(maybe_success);
+}

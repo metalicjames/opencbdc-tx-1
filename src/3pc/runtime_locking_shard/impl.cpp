@@ -43,7 +43,8 @@ namespace cbdc::threepc::runtime_locking_shard {
 
             // Make sure the ticket doesn't already hold a lock on the key
             if(auto lock_it = ticket.m_locks_held.find(key);
-               lock_it != ticket.m_locks_held.end()) {
+               lock_it != ticket.m_locks_held.end()
+               && lock_it->second >= locktype) {
                 m_log->warn(this,
                             ticket_number,
                             "tried to acquire already held lock");
@@ -336,8 +337,16 @@ namespace cbdc::threepc::runtime_locking_shard {
                     // If there are readers holding the lock we
                     // can't acquire the write lock or allow any
                     // more queued tickets to acquire the lock
-                    if(!lk.m_readers.empty() || lk.m_writer.has_value()) {
+                    if(lk.m_readers.size() > 1 || lk.m_writer.has_value()) {
                         break;
+                    }
+                    if(lk.m_readers.size() == 1) {
+                        if(*lk.m_readers.begin() != queued_ticket_number) {
+                            break;
+                        }
+
+                        // Upgrade from a read to a write lock
+                        lk.m_readers.clear();
                     }
                     lk.m_writer = queued_ticket_number;
                     acquire_next = false;
