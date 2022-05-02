@@ -45,6 +45,7 @@ TEST(agent_runner_test, rollback_test) {
 
     auto try_lock_cb
         = [&](const cbdc::threepc::broker::key_type& key,
+              cbdc::threepc::broker::lock_type /* locktype */,
               const cbdc::threepc::broker::interface::try_lock_callback_type&
                   res_cb) -> bool {
         EXPECT_EQ(key, exp_key_buf);

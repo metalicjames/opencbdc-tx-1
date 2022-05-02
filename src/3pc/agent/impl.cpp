@@ -167,8 +167,8 @@ namespace cbdc::threepc::agent {
 
     auto impl::handle_try_lock_request(
         broker::key_type key,
+        broker::lock_type locktype,
         broker::interface::try_lock_callback_type res_cb) -> bool {
-        // TODO: allow contracts to acquire read locks
         // TODO: permissions for keys
         std::unique_lock l(m_mut);
         assert(m_ticket_number.has_value());
@@ -180,7 +180,7 @@ namespace cbdc::threepc::agent {
         return m_broker->try_lock(
             m_ticket_number.value(),
             std::move(key),
-            m_dry_run ? broker::lock_type::read : broker::lock_type::write,
+            m_dry_run ? broker::lock_type::read : locktype,
             [this, cb = std::move(res_cb)](
                 broker::interface::try_lock_return_type res) {
                 handle_try_lock_response(cb, std::move(res));
@@ -211,9 +211,11 @@ namespace cbdc::threepc::agent {
                         },
                         [this](
                             broker::key_type key,
+                            broker::lock_type locktype,
                             broker::interface::try_lock_callback_type res_cb)
                             -> bool {
                             return handle_try_lock_request(std::move(key),
+                                                           locktype,
                                                            std::move(res_cb));
                         });
                     auto run_res = m_runner->run();

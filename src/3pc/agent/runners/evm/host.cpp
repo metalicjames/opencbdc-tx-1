@@ -32,7 +32,7 @@ namespace cbdc::threepc::agent::runner {
         m_receipt.m_tx = m_tx;
     }
 
-    auto evm_host::get_account(const evmc::address& addr) const
+    auto evm_host::get_account(const evmc::address& addr, bool write) const
         -> std::optional<evm_account> {
         m_log->trace("EVM request account:", to_hex(addr));
 
@@ -43,8 +43,8 @@ namespace cbdc::threepc::agent::runner {
         }
 
         auto it = m_accounts.find(addr);
-        if(it != m_accounts.end()) {
-            return it->second;
+        if(it != m_accounts.end() && (it->second.second || !write)) {
+            return it->second.first;
         }
 
         auto addr_key = cbdc::buffer();
@@ -56,6 +56,7 @@ namespace cbdc::threepc::agent::runner {
 
         auto ret = m_try_lock_callback(
             addr_key,
+            write ? broker::lock_type::write : broker::lock_type::read,
             [&](const broker::interface::try_lock_return_type& res) {
                 res_prom.set_value(res);
             });
@@ -71,13 +72,13 @@ namespace cbdc::threepc::agent::runner {
             m_accessed_addresses.insert(addr);
             auto v = std::get<broker::value_type>(res);
             if(v.size() == 0) {
-                m_accounts[addr] = std::nullopt;
+                m_accounts[addr] = {std::nullopt, write};
                 return std::nullopt;
             }
             auto maybe_acc = from_buffer<evm_account>(v);
             assert(maybe_acc.has_value());
             auto& acc = maybe_acc.value();
-            m_accounts[addr] = acc;
+            m_accounts[addr] = {acc, write};
             return acc;
         }
 
@@ -93,7 +94,7 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::account_exists(const evmc::address& addr) const noexcept
         -> bool {
         m_log->trace("EVM account exists:", to_hex(addr));
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return false;
         }
@@ -108,7 +109,7 @@ namespace cbdc::threepc::agent::runner {
                      to_hex(addr),
                      "key:",
                      to_hex(key));
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return {};
         }
@@ -131,7 +132,7 @@ namespace cbdc::threepc::agent::runner {
                      "val:",
                      to_hex(value));
         auto ret_val = std::optional<evmc_storage_status>();
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, true);
         if(!maybe_acc.has_value()) {
             maybe_acc = evm_account();
             ret_val = EVMC_STORAGE_ADDED;
@@ -153,7 +154,7 @@ namespace cbdc::threepc::agent::runner {
             }
         }
         acc.m_storage[key] = value;
-        m_accounts[addr] = acc;
+        m_accounts[addr] = {acc, true};
         assert(ret_val.has_value());
         return ret_val.value();
     }
@@ -161,7 +162,7 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::get_balance(const evmc::address& addr) const noexcept
         -> evmc::uint256be {
         m_log->trace("EVM get_balance:", to_hex(addr));
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return {};
         }
@@ -177,7 +178,7 @@ namespace cbdc::threepc::agent::runner {
             // call to work
             return 1;
         }
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return {};
         }
@@ -188,7 +189,7 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::get_code_hash(const evmc::address& addr) const noexcept
         -> evmc::bytes32 {
         m_log->trace("EVM get_code_hash:", to_hex(addr));
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return {};
         }
@@ -205,7 +206,7 @@ namespace cbdc::threepc::agent::runner {
                              uint8_t* buffer_data,
                              size_t buffer_size) const noexcept -> size_t {
         m_log->trace("EVM copy_code:", to_hex(addr), code_offset);
-        auto maybe_acc = get_account(addr);
+        auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
             return 0;
         }
@@ -231,7 +232,7 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::call(const evmc_message& msg) noexcept -> evmc::result {
         if(msg.kind == EVMC_CREATE2 || msg.kind == EVMC_CREATE) {
-            auto maybe_sender_acc = get_account(msg.sender);
+            auto maybe_sender_acc = get_account(msg.sender, false);
             assert(maybe_sender_acc.has_value());
             auto& sender_acc = maybe_sender_acc.value();
 
@@ -271,7 +272,7 @@ namespace cbdc::threepc::agent::runner {
                                      msg.input_size);
 
             if(res.status_code == EVMC_SUCCESS) {
-                auto maybe_acc = get_account(new_addr);
+                auto maybe_acc = get_account(new_addr, true);
                 if(!maybe_acc.has_value()) {
                     maybe_acc = evm_account();
                 }
@@ -280,7 +281,7 @@ namespace cbdc::threepc::agent::runner {
                 std::memcpy(acc.m_code.data(),
                             res.output_data,
                             res.output_size);
-                m_accounts[new_addr] = acc;
+                m_accounts[new_addr] = {acc, true};
             }
 
             if(msg.depth == 0) {
@@ -399,7 +400,8 @@ namespace cbdc::threepc::agent::runner {
     auto evm_host::get_state_updates() const
         -> runtime_locking_shard::state_update_type {
         auto ret = runtime_locking_shard::state_update_type();
-        for(auto& [addr, acc] : m_accounts) {
+        for(auto& [addr, acc_data] : m_accounts) {
+            auto& [acc, _] = acc_data;
             if(!acc.has_value()) {
                 continue;
             }
@@ -422,7 +424,7 @@ namespace cbdc::threepc::agent::runner {
 
     void evm_host::insert_account(const evmc::address& addr,
                                   const evm_account& acc) {
-        m_accounts.insert({addr, acc});
+        m_accounts.insert({addr, {acc, true}});
         m_accessed_addresses.insert(addr);
         m_init_state = m_accounts;
     }
@@ -430,7 +432,7 @@ namespace cbdc::threepc::agent::runner {
     void evm_host::transfer(const evmc::address& from,
                             const evmc::address& to,
                             const evmc::uint256be& value) {
-        auto maybe_acc = get_account(from);
+        auto maybe_acc = get_account(from, true);
         assert(maybe_acc.has_value());
         auto& acc = maybe_acc.value();
         // TODO: 256-bit integer precision
@@ -446,9 +448,9 @@ namespace cbdc::threepc::agent::runner {
         }
         auto new_bal = acc_bal - val;
         acc.m_balance = evmc::uint256be(new_bal);
-        m_accounts[from] = acc;
+        m_accounts[from] = {acc, true};
 
-        auto maybe_to_acc = get_account(to);
+        auto maybe_to_acc = get_account(to, true);
         if(!maybe_to_acc.has_value()) {
             // Create the to account if it doesn't exist
             maybe_to_acc = evm_account();
@@ -457,18 +459,18 @@ namespace cbdc::threepc::agent::runner {
         auto to_acc_bal = to_uint64(to_acc.m_balance);
         auto new_to_acc_bal = to_acc_bal + val;
         to_acc.m_balance = evmc::uint256be(new_to_acc_bal);
-        m_accounts[to] = to_acc;
+        m_accounts[to] = {to_acc, true};
     }
 
     void evm_host::finalize(int64_t gas_left, int64_t gas_used) {
         if(!m_dry_run) {
-            auto maybe_acc = get_account(m_tx_context.tx_origin);
+            auto maybe_acc = get_account(m_tx_context.tx_origin, true);
             assert(maybe_acc.has_value());
             auto& acc = maybe_acc.value();
             auto acc_bal = to_uint64(acc.m_balance);
             auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
             acc.m_balance = evmc::uint256be(new_bal);
-            m_accounts[m_tx_context.tx_origin] = acc;
+            m_accounts[m_tx_context.tx_origin] = {acc, true};
         }
         m_receipt.m_gas_used
             = evmc::uint256be(static_cast<uint64_t>(gas_used));

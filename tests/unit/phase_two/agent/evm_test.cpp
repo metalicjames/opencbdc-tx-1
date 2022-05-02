@@ -144,8 +144,8 @@ TEST_F(evm_test, initial_test) {
 
 TEST_F(evm_test, host_storage) {
     const auto addr1 = evmc::address{};
-    const auto addr2 = evmc::address{1};
-    const auto addr3 = evmc::address{2};
+    const auto addr2 = evmc::address{0xffffff};
+    const auto addr3 = evmc::address{0xffffff1};
     const auto val1 = evmc::bytes32{};
     const auto val2 = evmc::bytes32{2};
     const auto val3 = evmc::bytes32{3};
@@ -159,6 +159,7 @@ TEST_F(evm_test, host_storage) {
     auto host = cbdc::threepc::agent::runner::evm_host(
         m_log,
         [&](const cbdc::threepc::runtime_locking_shard::key_type& k,
+            cbdc::threepc::broker::lock_type /* locktype */,
             const cbdc::threepc::broker::interface::try_lock_callback_type&
                 cb) {
             cb(m[k]);
@@ -175,6 +176,7 @@ TEST_F(evm_test, host_storage) {
     host = cbdc::threepc::agent::runner::evm_host(
         m_log,
         [&](const cbdc::threepc::runtime_locking_shard::key_type& k,
+            cbdc::threepc::broker::lock_type /* locktype */,
             const cbdc::threepc::broker::interface::try_lock_callback_type&
                 cb) {
             cb(m[k]);

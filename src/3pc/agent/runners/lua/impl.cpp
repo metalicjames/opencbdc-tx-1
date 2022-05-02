@@ -150,6 +150,7 @@ namespace cbdc::threepc::agent::runner {
             lua_pop(m_state.get(), n_results);
             auto success
                 = m_try_lock_callback(std::move(key_buf.value()),
+                                      broker::lock_type::write,
                                       [&](auto res) {
                                           handle_try_lock(std::move(res));
                                       });

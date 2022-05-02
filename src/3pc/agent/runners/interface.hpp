@@ -56,6 +56,7 @@ namespace cbdc::threepc::agent::runner {
         /// result. Returns true if request was initiated successfully.
         using try_lock_callback_type
             = std::function<bool(broker::key_type,
+                                 broker::lock_type,
                                  broker::interface::try_lock_callback_type)>;
 
         using factory_type = std::function<std::unique_ptr<interface>(

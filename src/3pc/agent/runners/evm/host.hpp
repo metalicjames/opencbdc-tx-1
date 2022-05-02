@@ -95,7 +95,9 @@ namespace cbdc::threepc::agent::runner {
       private:
         std::shared_ptr<logging::log> m_log;
         runner::interface::try_lock_callback_type m_try_lock_callback;
-        mutable std::map<evmc::address, std::optional<evm_account>> m_accounts;
+        mutable std::map<evmc::address,
+                         std::pair<std::optional<evm_account>, bool>>
+            m_accounts;
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;
         evm_tx m_tx;
@@ -107,12 +109,14 @@ namespace cbdc::threepc::agent::runner {
 
         mutable bool m_retry{false};
 
-        std::map<evmc::address, std::optional<evm_account>> m_init_state;
+        std::map<evmc::address, std::pair<std::optional<evm_account>, bool>>
+            m_init_state;
 
         evm_tx_receipt m_receipt;
         cbdc::buffer m_tx_id;
 
-        [[nodiscard]] auto get_account(const evmc::address& addr) const
+        [[nodiscard]] auto get_account(const evmc::address& addr,
+                                       bool write) const
             -> std::optional<evm_account>;
 
         void transfer(const evmc::address& from,
