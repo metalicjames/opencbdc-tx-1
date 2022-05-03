@@ -21,7 +21,9 @@ contract_code = {}
 
 requests = {}
 
-loop = asyncio.get_event_loop()
+
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 reader = None
 writer = None
 
@@ -60,6 +62,8 @@ async def send_req(payload):
 
     fut = loop.create_future()
     requests[req_id] = fut
+
+    print('writing req')
 
     writer.write(req)
     await writer.drain()
@@ -390,6 +394,8 @@ class JSONRPCProtocol(asyncio.Protocol):
         self.send(response)
         self.send(h11.Data(data=res.encode('utf-8')))
         self.send(h11.EndOfMessage())
+
+        print('responding with:', res)
 
         if self.connection.our_state == h11.DONE and self.connection.their_state == h11.DONE:
             self.connection.start_next_cycle()

@@ -11,6 +11,7 @@
 #include <evmc/evmc.hpp>
 #include <map>
 #include <set>
+#include <optional>
 #include <vector>
 
 namespace cbdc::threepc::agent::runner {
