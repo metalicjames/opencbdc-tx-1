@@ -52,10 +52,19 @@ class evm_test : public ::testing::Test {
 
         auto acc = cbdc::threepc::agent::runner::evm_account();
         acc.m_balance = evmc::uint256be(1000000);
-        acc.m_code.resize(contract.size());
-        std::memcpy(acc.m_code.data(), contract.data(), contract.size());
+
         auto acc_buf = cbdc::make_buffer(acc);
         cbdc::test::add_to_shard(m_broker, m_addr0, acc_buf);
+
+        auto code_key = cbdc::buffer();
+        code_key.append(m_addr0.data(), m_addr0.size());
+        constexpr uint8_t code_byte = 0;
+        code_key.append(&code_byte, sizeof(code_byte));
+        auto code = cbdc::threepc::agent::runner::evm_account_code();
+        code.resize(contract.size());
+        std::memcpy(code.data(), contract.data(), contract.size());
+        auto code_buf = cbdc::make_buffer(code);
+        cbdc::test::add_to_shard(m_broker, code_key, code_buf);
 
         auto acc1 = cbdc::threepc::agent::runner::evm_account();
         acc1.m_balance = evmc::uint256be(1000000);

@@ -98,6 +98,14 @@ namespace cbdc::threepc::agent::runner {
         mutable std::map<evmc::address,
                          std::pair<std::optional<evm_account>, bool>>
             m_accounts;
+        mutable std::map<
+            evmc::address,
+            std::map<evmc::bytes32,
+                     std::pair<std::optional<evmc::bytes32>, bool>>>
+            m_account_storage;
+        mutable std::map<evmc::address,
+                         std::pair<std::optional<evm_account_code>, bool>>
+            m_account_code;
         evmc_tx_context m_tx_context;
         std::shared_ptr<evmc::VM> m_vm;
         evm_tx m_tx;
@@ -119,11 +127,23 @@ namespace cbdc::threepc::agent::runner {
                                        bool write) const
             -> std::optional<evm_account>;
 
+        [[nodiscard]] auto get_account_storage(const evmc::address& addr,
+                                               const evmc::bytes32& key,
+                                               bool write) const
+            -> std::optional<evmc::bytes32>;
+
+        [[nodiscard]] auto get_account_code(const evmc::address& addr,
+                                            bool write) const
+            -> std::optional<evm_account_code>;
+
         void transfer(const evmc::address& from,
                       const evmc::address& to,
                       const evmc::uint256be& value);
 
         static auto is_precompile(const evmc::address& addr) -> bool;
+
+        [[nodiscard]] auto get_key(const cbdc::buffer& key, bool write) const
+            -> std::optional<broker::value_type>;
     };
 }
 

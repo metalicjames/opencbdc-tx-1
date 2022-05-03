@@ -10,8 +10,8 @@
 
 #include <evmc/evmc.hpp>
 #include <map>
-#include <set>
 #include <optional>
+#include <set>
 #include <vector>
 
 namespace cbdc::threepc::agent::runner {
@@ -20,12 +20,13 @@ namespace cbdc::threepc::agent::runner {
 
     struct evm_account {
         evmc::uint256be m_balance{};
-        std::vector<uint8_t> m_code{};
-        std::map<evmc::bytes32, evmc::bytes32> m_storage{};
         evmc::uint256be m_nonce{};
+
         std::set<evmc::bytes32> m_modified{};
         bool m_destruct{false};
     };
+
+    using evm_account_code = std::vector<uint8_t>;
 
     struct evm_sig {
         evmc::uint256be m_r;
@@ -77,6 +78,16 @@ namespace cbdc::threepc::agent::runner {
         evmc::uint256be m_gas_used{};
         std::vector<evm_log> m_logs{};
         std::vector<uint8_t> m_output_data{};
+    };
+
+    // TODO: evm namespace
+    struct code_key {
+        evmc::address m_addr;
+    };
+
+    struct storage_key {
+        evmc::address m_addr;
+        evmc::bytes32 m_key;
     };
 }
 
