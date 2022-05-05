@@ -13,7 +13,7 @@ WORKDIR /opt/tx-processor
 COPY . .
 
 # configure
-RUN bash scripts/configure.sh
+RUN scripts/configure.sh
 
 # Update submodules
 RUN git submodule init && git submodule update

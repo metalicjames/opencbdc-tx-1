@@ -2,6 +2,7 @@ project(evm_runner)
 
 add_library(evm_runner address.cpp
                        impl.cpp
+                       math.cpp
                        hash.cpp
                        host.cpp
                        format.cpp

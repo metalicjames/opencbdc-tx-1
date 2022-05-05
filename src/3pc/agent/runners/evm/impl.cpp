@@ -7,6 +7,7 @@
 
 #include "format.hpp"
 #include "host.hpp"
+#include "math.hpp"
 #include "util.hpp"
 
 #include <evmone/evmone.h>
@@ -91,10 +92,8 @@ namespace cbdc::threepc::agent::runner {
             }
             auto& from_acc = maybe_from_acc.value();
 
-            auto tx_nonce = to_uint64(tx->m_nonce);
-            auto acc_nonce = to_uint64(from_acc.m_nonce);
-
-            if(acc_nonce + 1 != tx_nonce && !m_dry_run) {
+            if(from_acc.m_nonce + evmc::uint256be(1) != tx->m_nonce
+               && !m_dry_run) {
                 m_log->trace("TX has incorrect nonce for from account");
                 m_result_callback(error_code::exec_error);
                 return true;
@@ -114,14 +113,10 @@ namespace cbdc::threepc::agent::runner {
                 return true;
             }
 
-            auto gas_price = to_uint64(tx->m_gas_price);
-            auto value = to_uint64(tx->m_value);
-            auto balance = to_uint64(from_acc.m_balance);
+            auto total_gas_cost = tx->m_gas_limit * tx->m_gas_price;
 
-            auto total_gas_cost = m_gas_limit * gas_price;
-
-            auto required_funds = value + total_gas_cost;
-            if(balance < required_funds && !m_dry_run) {
+            auto required_funds = tx->m_value + total_gas_cost;
+            if(from_acc.m_balance < required_funds && !m_dry_run) {
                 m_log->trace(
                     "From account has insufficient funds to cover gas "
                     "and tx value");
@@ -134,11 +129,10 @@ namespace cbdc::threepc::agent::runner {
             msg.gas = static_cast<int64_t>(m_gas_limit - min_gas);
 
             // Deduct gas
-            auto new_bal = balance - total_gas_cost;
-            from_acc.m_balance = evmc::uint256be(new_bal);
+            from_acc.m_balance
+                = from_acc.m_balance - evmc::uint256be(total_gas_cost);
             // Increment nonce
-            auto new_nonce = acc_nonce + 1;
-            from_acc.m_nonce = evmc::uint256be(new_nonce);
+            from_acc.m_nonce = from_acc.m_nonce + evmc::uint256be(1);
             host->insert_account(tx->m_from, from_acc);
         }
 

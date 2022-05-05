@@ -9,6 +9,7 @@
 #include "crypto/sha256.h"
 #include "format.hpp"
 #include "hash.hpp"
+#include "math.hpp"
 #include "rlp.hpp"
 #include "util.hpp"
 
@@ -433,19 +434,14 @@ namespace cbdc::threepc::agent::runner {
         auto maybe_acc = get_account(from, true);
         assert(maybe_acc.has_value());
         auto& acc = maybe_acc.value();
-        // TODO: 256-bit integer precision
-        auto acc_bal = to_uint64(acc.m_balance);
-        auto val = uint64_t{};
+        auto val = value;
         if(evmc::is_zero(value)) {
             // Special case: destruct the from account if we're transfering the
             // entire account balance
-            val = acc_bal;
+            val = acc.m_balance;
             acc.m_destruct = true;
-        } else {
-            val = to_uint64(value);
         }
-        auto new_bal = acc_bal - val;
-        acc.m_balance = evmc::uint256be(new_bal);
+        acc.m_balance = acc.m_balance - val;
         m_accounts[from] = {acc, true};
 
         auto maybe_to_acc = get_account(to, true);
@@ -454,9 +450,7 @@ namespace cbdc::threepc::agent::runner {
             maybe_to_acc = evm_account();
         }
         auto& to_acc = maybe_to_acc.value();
-        auto to_acc_bal = to_uint64(to_acc.m_balance);
-        auto new_to_acc_bal = to_acc_bal + val;
-        to_acc.m_balance = evmc::uint256be(new_to_acc_bal);
+        to_acc.m_balance = to_acc.m_balance + val;
         m_accounts[to] = {to_acc, true};
     }
 
@@ -465,9 +459,8 @@ namespace cbdc::threepc::agent::runner {
             auto maybe_acc = get_account(m_tx_context.tx_origin, true);
             assert(maybe_acc.has_value());
             auto& acc = maybe_acc.value();
-            auto acc_bal = to_uint64(acc.m_balance);
-            auto new_bal = acc_bal + static_cast<uint64_t>(gas_left);
-            acc.m_balance = evmc::uint256be(new_bal);
+            acc.m_balance = acc.m_balance
+                          + evmc::uint256be(static_cast<uint64_t>(gas_left));
             m_accounts[m_tx_context.tx_origin] = {acc, true};
         }
         m_receipt.m_gas_used
