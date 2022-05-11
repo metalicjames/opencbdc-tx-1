@@ -1,0 +1,5 @@
+FROM python:3.9
+COPY src/3pc/agent/runners/evm/rpc_proxy/ .
+COPY scripts/wait-for-it.sh .
+RUN pip3 install -r requirements.txt
+CMD ["python3","rpc_proxy.py"]

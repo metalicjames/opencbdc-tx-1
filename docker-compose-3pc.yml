@@ -7,7 +7,7 @@ services:
     image: opencbdc-tx
     tty: true
     restart: always
-    command: ./build/src/3pc/agent/agentd --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
+    command: ./scripts/wait-for-it.sh -s ticket0:7777 -t 60 -- ./scripts/wait-for-it.sh -s shard0:5556 -t 60 -- ./build/src/3pc/agent/agentd --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
     ports:
       - 6666:6666
     depends_on:
@@ -16,7 +16,7 @@ services:
     networks:
       - 3pc-network
     healthcheck:
-      test: ["CMD-SHELL", "netstat -ltn | grep -c 5555"]
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 6666"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -25,7 +25,7 @@ services:
     build: .
     image: opencbdc-tx
     tty: true
-    command: ./build/src/3pc/ticket_machine/ticket_machined --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
+    command: ./scripts/wait-for-it.sh -s shard0:5556 -t 60 -- ./build/src/3pc/ticket_machine/ticket_machined --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
     networks:
       - 3pc-network
     healthcheck:
@@ -41,23 +41,23 @@ services:
     tty: true
     command: ./build/src/3pc/runtime_locking_shard/runtime_locking_shardd --shard_count=1 --shard0_count=1 --shard00_endpoint=shard0:5556 --node_id=0 --component_id=0 --agent_count=1 --agent0_endpoint=agent0:6666 --ticket_machine_count=1 --ticket_machine0_endpoint=ticket0:7777
     ports:
-      - 6767:6767
+      - 5556:5556
     networks:
       - 3pc-network
     healthcheck:
-      test: ["CMD-SHELL", "netstat -ltn | grep -c 6666"]
+      test: ["CMD-SHELL", "netstat -ltn | grep -c 5556"]
       interval: 30s
       timeout: 10s
       retries: 5
+    restart: always
 
   rpc0:
-    build: .
-    image: opencbdc-tx
-    restart: always
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.rpcproxy
+    image: opencbdc-tx-rpc-rpc_proxy
     tty: true
-    command: python3 src/3pc/agent/runners/evm/rpc_proxy/rpc_proxy.py --agent_host=agent0 --agent_port=6666
-    expose:
-      - 8080
+    command: ./wait-for-it.sh -s agent0:6666 -t 60 -- python3 rpc_proxy.py --agent_host=agent0 --agent_port=6666 --listen_host=0.0.0.0 --listen_port=8080
     ports:
       - 8080:8080
     depends_on:

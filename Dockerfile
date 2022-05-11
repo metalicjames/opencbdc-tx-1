@@ -3,17 +3,17 @@ FROM ubuntu:22.04
 # set non-interactive shell
 ENV DEBIAN_FRONTEND noninteractive
 
-# Args
-ARG CMAKE_BUILD_TYPE="Release"
+RUN mkdir -p /opt/tx-processor/scripts
+
+COPY scripts/configure.sh /opt/tx-processor/scripts/configure.sh
 
 # Set working directory
 WORKDIR /opt/tx-processor
 
+RUN scripts/configure.sh
+
 # Copy source
 COPY . .
-
-# configure
-RUN scripts/configure.sh
 
 # Update submodules
 RUN git submodule init && git submodule update
