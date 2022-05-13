@@ -64,14 +64,16 @@ namespace cbdc::threepc::agent::runner {
                           &esig.m_s.bytes[sizeof(esig.m_s.bytes)],
                           &sig.data[sizeof(esig.m_r.bytes)]);
 
-        // Recover v mutation based on EIP155 and chain ID 1
+        // Recover v mutation based on EIP155 and chain ID
         auto v_large = to_uint64(esig.m_v);
-        if(type == evm_tx_type::legacy) {
+        if(type == evm_tx_type::legacy && v_large > eip155_v_offset) {
             v_large -= eip155_v_offset;
             v_large -= (chain_id * 2);
             if(v_large > std::numeric_limits<uint8_t>::max()) {
                 return std::nullopt;
             }
+        } else if(type == evm_tx_type::legacy && v_large >= pre_eip155_v_offset) {
+            v_large -= pre_eip155_v_offset;
         }
         auto v = static_cast<uint8_t>(v_large);
         std::memcpy(&sig.data[sizeof(sig.data) - sizeof(v)], &v, sizeof(v));

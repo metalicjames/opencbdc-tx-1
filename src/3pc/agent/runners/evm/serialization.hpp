@@ -21,6 +21,7 @@
 
 namespace cbdc::threepc::agent::runner {
     static constexpr uint64_t eip155_v_offset = 35;
+    static constexpr uint64_t pre_eip155_v_offset = 27;
 
     /// Converts the given transaction to an RLP encoded buffer conforming to
     /// Ethereums conventions
