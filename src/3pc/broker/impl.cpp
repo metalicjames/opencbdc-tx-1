@@ -462,14 +462,24 @@ namespace cbdc::threepc::broker {
             std::unique_lock l(m_mut);
             auto it = m_tickets.find(ticket_number);
             if(it == m_tickets.end()) {
+                m_log->trace(this,
+                             "Broker failing finish: [Unknown ticket] for ",
+                             ticket_number);
                 return error_code::unknown_ticket;
             }
 
             auto t_state = it->second;
             switch(t_state->m_state) {
                 case ticket_state::begun:
+                    m_log->trace(this,
+                                 "Broker failing finish: [State = Begun] for ",
+                                 ticket_number);
                     return error_code::begun;
                 case ticket_state::prepared:
+                    m_log->trace(
+                        this,
+                        "Broker failing finish: [State = Prepared] for ",
+                        ticket_number);
                     return error_code::prepared;
                 case ticket_state::committed:
                     break;
@@ -527,6 +537,7 @@ namespace cbdc::threepc::broker {
     auto impl::rollback(ticket_number_type ticket_number,
                         rollback_callback_type result_callback) -> bool {
         m_log->trace(this, "Broker got rollback request for", ticket_number);
+        auto callback = false;
         auto maybe_error = [&]() -> std::optional<error_code> {
             std::unique_lock l(m_mut);
             auto it = m_tickets.find(ticket_number);
@@ -544,6 +555,12 @@ namespace cbdc::threepc::broker {
                     return error_code::committed;
                 case ticket_state::aborted:
                     return error_code::aborted;
+            }
+
+            if(t_state->m_shard_states.empty()) {
+                callback = true;
+                t_state->m_state = ticket_state::aborted;
+                return std::nullopt;
             }
 
             for(auto& shard : t_state->m_shard_states) {
@@ -587,6 +604,8 @@ namespace cbdc::threepc::broker {
 
         if(maybe_error.has_value()) {
             result_callback(maybe_error.value());
+        } else if(callback) {
+            result_callback(std::nullopt);
         }
 
         m_log->trace(this,

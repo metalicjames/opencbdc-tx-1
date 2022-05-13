@@ -53,15 +53,4 @@ namespace cbdc::threepc::agent::runner {
                     maybe_bytes.value().size());
         return bytes_val;
     }
-
-    auto tx_id(const evm_tx& tx) -> cbdc::buffer {
-        auto buf = make_buffer(tx);
-        auto s = CSHA256();
-        s.Write(buf.c_ptr(), buf.size());
-        auto h = hash_t();
-        s.Finalize(h.data());
-        auto ret = cbdc::buffer();
-        ret.append(h.data(), h.size());
-        return ret;
-    }
 }

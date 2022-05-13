@@ -23,35 +23,36 @@ namespace cbdc::threepc::agent::runner {
     /// struct Used primarily in unit tests for signature checking
     /// \param key key to sign with
     /// \param hash hash to sign
+    /// \param type the transaction type
     /// \param ctx secp256k1 context to use
+    /// \param chain_id the chain_id we are signing for (defaults to opencbdc)
     /// \return the signature value encoded in r,s,v values in an evm_sig struct
     auto
     eth_sign(const privkey_t& key,
              hash_t& hash,
              evm_tx_type type,
-             uint64_t chain_id,
              const std::unique_ptr<secp256k1_context,
-                                   decltype(&secp256k1_context_destroy)>& ctx)
-        -> evm_sig;
+                                   decltype(&secp256k1_context_destroy)>& ctx,
+             uint64_t chain_id = opencbdc_chain_id) -> evm_sig;
 
     /// Checks the signature of an EVM transaction
     /// \param tx transaction to check signature for
-    /// \param from address expected to have sent the transaction
+    /// \param chain_id chain_id for which the transaction is meant
     /// \param ctx secp256k1 context to use
-    /// \return true if valid, false otherwise
+    /// \return the signer's address if the signature is valid and recoverable,
+    /// nullopt otherwise
     auto check_signature(
         const std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>& tx,
-        uint64_t chain_id,
         const std::unique_ptr<secp256k1_context,
-                              decltype(&secp256k1_context_destroy)>& ctx)
-        -> bool;
+                              decltype(&secp256k1_context_destroy)>& ctx,
+        uint64_t chain_id = opencbdc_chain_id) -> std::optional<evmc::address>;
 
     /// Calculates the hash for creating / validating the signature
     /// \param tx transaction to calculate the sighash for
     /// \return the sighash of the transaction
     auto
     sig_hash(const std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>& tx,
-             uint64_t chain_id) -> hash_t;
+             uint64_t chain_id = opencbdc_chain_id) -> hash_t;
 
 }
 #endif

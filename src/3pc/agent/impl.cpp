@@ -137,6 +137,19 @@ namespace cbdc::threepc::agent {
             return;
         }
 
+        // for one-byte functions, don't resolve but use the one byte and pass
+        // it along. This is used in the EVM runner to distinguish between
+        // sending a transaction or querying something (account data for
+        // instance). Since we don't know the from here for EVM, since it
+        // relies on the signature check, we only pass the transaction as
+        // m_param and let the runner figure it out.
+        if(get_function().size() == 1) {
+            handle_function(broker::value_type(get_function()));
+            return;
+        }
+
+        m_log->trace("do_start ", get_function().to_hex());
+
         auto tl_success = m_broker->try_lock(
             m_ticket_number.value(),
             get_function(),
@@ -198,6 +211,7 @@ namespace cbdc::threepc::agent {
         std::visit(
             overloaded{
                 [&](broker::value_type v) {
+                    m_log->trace("Starting function m_function ", v.to_hex());
                     m_state = state::function_started;
                     m_runner = m_runner_factory(
                         m_log,

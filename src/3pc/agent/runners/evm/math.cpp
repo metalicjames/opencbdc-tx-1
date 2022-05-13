@@ -5,6 +5,8 @@
 
 #include "math.hpp"
 
+#include <limits>
+
 namespace cbdc::threepc::agent::runner {
     auto operator+(const evmc::uint256be& lhs, const evmc::uint256be& rhs)
         -> evmc::uint256be {

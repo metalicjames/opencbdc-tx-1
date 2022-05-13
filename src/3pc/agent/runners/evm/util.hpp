@@ -49,8 +49,6 @@ namespace cbdc::threepc::agent::runner {
                     maybe_bytes.value().size());
         return val;
     }
-
-    auto tx_id(const evm_tx& tx) -> cbdc::buffer;
 }
 
 #endif

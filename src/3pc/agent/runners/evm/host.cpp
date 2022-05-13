@@ -11,6 +11,7 @@
 #include "hash.hpp"
 #include "math.hpp"
 #include "rlp.hpp"
+#include "serialization.hpp"
 #include "util.hpp"
 
 #include <cassert>
@@ -201,73 +202,77 @@ namespace cbdc::threepc::agent::runner {
         transfer(addr, beneficiary, evmc::uint256be{});
     }
 
+    auto evm_host::create(const evmc_message& msg) noexcept -> evmc::result {
+        auto maybe_sender_acc = get_account(msg.sender, false);
+        assert(maybe_sender_acc.has_value());
+        auto& sender_acc = maybe_sender_acc.value();
+
+        auto new_addr = evmc::address();
+        if(msg.kind == EVMC_CREATE) {
+            new_addr = contract_address(msg.sender, sender_acc.m_nonce);
+        } else {
+            auto bytecode_hash
+                = cbdc::keccak_data(msg.input_data, msg.input_size);
+            new_addr = contract_address2(msg.sender,
+                                         msg.create2_salt,
+                                         bytecode_hash);
+        }
+
+        // Transfer endowment to deployed contract account
+        if(!evmc::is_zero(msg.value)) {
+            transfer(msg.sender, new_addr, msg.value);
+        }
+
+        if(msg.depth == 0) {
+            m_receipt.m_create_address = new_addr;
+        }
+
+        auto call_msg = evmc_message();
+        call_msg.depth = msg.depth;
+        call_msg.sender = msg.sender;
+        call_msg.value = msg.value;
+        call_msg.recipient = new_addr;
+        call_msg.kind = EVMC_CALL;
+        // TODO: do we need to deduct some gas for contract creation here?
+        call_msg.gas = msg.gas;
+
+        auto res = m_vm->execute(*this,
+                                 EVMC_LATEST_STABLE_REVISION,
+                                 call_msg,
+                                 msg.input_data,
+                                 msg.input_size);
+
+        if(res.status_code == EVMC_SUCCESS) {
+            auto maybe_acc = get_account(new_addr, true);
+            if(!maybe_acc.has_value()) {
+                maybe_acc = evm_account();
+            }
+            auto& acc = maybe_acc.value();
+            m_accounts[new_addr] = {acc, true};
+
+            auto maybe_code = get_account_code(new_addr, true);
+            if(!maybe_code.has_value()) {
+                maybe_code = evm_account_code();
+            }
+            auto& code = maybe_code.value();
+            code.resize(res.output_size);
+            std::memcpy(code.data(), res.output_data, res.output_size);
+            m_account_code[new_addr] = {code, true};
+        }
+
+        if(msg.depth == 0) {
+            m_receipt.m_output_data.resize(res.output_size);
+            std::memcpy(m_receipt.m_output_data.data(),
+                        res.output_data,
+                        res.output_size);
+        }
+
+        return res;
+    }
+
     auto evm_host::call(const evmc_message& msg) noexcept -> evmc::result {
         if(msg.kind == EVMC_CREATE2 || msg.kind == EVMC_CREATE) {
-            auto maybe_sender_acc = get_account(msg.sender, false);
-            assert(maybe_sender_acc.has_value());
-            auto& sender_acc = maybe_sender_acc.value();
-
-            auto new_addr = evmc::address();
-            if(msg.kind == EVMC_CREATE) {
-                new_addr = contract_address(msg.sender, sender_acc.m_nonce);
-            } else {
-                auto bytecode_hash
-                    = cbdc::keccak_data(msg.input_data, msg.input_size);
-                new_addr = contract_address2(msg.sender,
-                                             msg.create2_salt,
-                                             bytecode_hash);
-            }
-
-            // Transfer endowment to deployed contract account
-            if(!evmc::is_zero(msg.value)) {
-                transfer(msg.sender, new_addr, msg.value);
-            }
-
-            if(msg.depth == 0) {
-                m_receipt.m_create_address = new_addr;
-            }
-
-            auto call_msg = evmc_message();
-            call_msg.depth = msg.depth;
-            call_msg.sender = msg.sender;
-            call_msg.value = msg.value;
-            call_msg.recipient = new_addr;
-            call_msg.kind = EVMC_CALL;
-            // TODO: do we need to deduct some gas for contract creation here?
-            call_msg.gas = msg.gas;
-
-            auto res = m_vm->execute(*this,
-                                     EVMC_LATEST_STABLE_REVISION,
-                                     call_msg,
-                                     msg.input_data,
-                                     msg.input_size);
-
-            if(res.status_code == EVMC_SUCCESS) {
-                auto maybe_acc = get_account(new_addr, true);
-                if(!maybe_acc.has_value()) {
-                    maybe_acc = evm_account();
-                }
-                auto& acc = maybe_acc.value();
-                m_accounts[new_addr] = {acc, true};
-
-                auto maybe_code = get_account_code(new_addr, true);
-                if(!maybe_code.has_value()) {
-                    maybe_code = evm_account_code();
-                }
-                auto& code = maybe_code.value();
-                code.resize(res.output_size);
-                std::memcpy(code.data(), res.output_data, res.output_size);
-                m_account_code[new_addr] = {code, true};
-            }
-
-            if(msg.depth == 0) {
-                m_receipt.m_output_data.resize(res.output_size);
-                std::memcpy(m_receipt.m_output_data.data(),
-                            res.output_data,
-                            res.output_size);
-            }
-
-            return res;
+            return create(msg);
         }
 
         // Transfer message value from sender account to recipient
@@ -411,7 +416,8 @@ namespace cbdc::threepc::agent::runner {
             }
         }
 
-        auto tid = tx_id(m_tx);
+        const auto tx = std::make_shared<evm_tx>(m_tx);
+        auto tid = make_buffer(tx_id(tx));
         auto r = make_buffer(m_receipt);
         ret[tid] = r;
         return ret;
@@ -477,8 +483,13 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::is_precompile(const evmc::address& addr) -> bool {
         auto addr_copy = addr;
-        std::memset(&addr_copy.bytes[18], 0, 2);
-        return evmc::is_zero(addr_copy) && addr.bytes[19] != 0;
+        constexpr auto precompile_suffix_sz = sizeof(uint16_t);
+        std::memset(
+            &addr_copy.bytes[sizeof(addr_copy.bytes) - precompile_suffix_sz],
+            0,
+            precompile_suffix_sz);
+        return evmc::is_zero(addr_copy)
+            && addr.bytes[sizeof(addr_copy.bytes) - 1] != 0;
     }
 
     auto evm_host::get_account_storage(const evmc::address& addr,

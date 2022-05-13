@@ -63,18 +63,28 @@ namespace cbdc {
 
     auto operator<<(serializer& ser, const threepc::agent::runner::evm_tx& tx)
         -> serializer& {
-        return ser << tx.m_type << tx.m_from << tx.m_to << tx.m_value
-                   << tx.m_nonce << tx.m_gas_price << tx.m_gas_limit
-                   << tx.m_gas_tip_cap << tx.m_gas_fee_cap << tx.m_input
-                   << tx.m_access_list << tx.m_sig;
+        return ser << tx.m_type << tx.m_to << tx.m_value << tx.m_nonce
+                   << tx.m_gas_price << tx.m_gas_limit << tx.m_gas_tip_cap
+                   << tx.m_gas_fee_cap << tx.m_input << tx.m_access_list
+                   << tx.m_sig;
     }
 
     auto operator>>(serializer& deser, threepc::agent::runner::evm_tx& tx)
         -> serializer& {
-        return deser >> tx.m_type >> tx.m_from >> tx.m_to >> tx.m_value
-            >> tx.m_nonce >> tx.m_gas_price >> tx.m_gas_limit
-            >> tx.m_gas_tip_cap >> tx.m_gas_fee_cap >> tx.m_input
-            >> tx.m_access_list >> tx.m_sig;
+        return deser >> tx.m_type >> tx.m_to >> tx.m_value >> tx.m_nonce
+            >> tx.m_gas_price >> tx.m_gas_limit >> tx.m_gas_tip_cap
+            >> tx.m_gas_fee_cap >> tx.m_input >> tx.m_access_list >> tx.m_sig;
+    }
+
+    auto operator<<(serializer& ser,
+                    const threepc::agent::runner::evm_dryrun_tx& tx)
+        -> serializer& {
+        return ser << tx.m_from << tx.m_tx;
+    }
+
+    auto operator>>(serializer& deser,
+                    threepc::agent::runner::evm_dryrun_tx& tx) -> serializer& {
+        return deser >> tx.m_from >> tx.m_tx;
     }
 
     auto operator<<(serializer& ser, const threepc::agent::runner::evm_log& l)

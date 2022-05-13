@@ -15,6 +15,12 @@
 #include <thread>
 
 namespace cbdc::threepc::agent::runner {
+    enum class evm_runner_function : uint8_t {
+        execute_transaction,
+        read_account,
+        dryrun_transaction,
+        read_account_code,
+    };
     class evm_runner : public interface {
       public:
         evm_runner(std::shared_ptr<logging::log> logger,
@@ -49,6 +55,22 @@ namespace cbdc::threepc::agent::runner {
 
         void exec(const evmc_message& msg,
                   const std::shared_ptr<evm_host>& host);
+        auto run_execute_real_transaction() -> bool;
+        auto run_execute_dryrun_transaction() -> bool;
+        auto run_get_account_code() -> bool;
+        auto run_execute_transaction(std::shared_ptr<evm_tx>& tx,
+                                     const evmc::address& from,
+                                     bool dry_run) -> bool;
+        auto run_get_account() -> bool;
+        static auto check_base_gas(std::shared_ptr<evm_tx>& tx, bool dry_run)
+            -> std::pair<evmc::uint256be, bool>;
+        static auto make_tx_context(std::shared_ptr<evm_tx>& tx,
+                                    const evmc::address& from,
+                                    bool dry_run) -> evmc_tx_context;
+        static auto make_message(std::shared_ptr<evm_tx>& tx,
+                                 const evmc::address& from,
+                                 bool dry_run)
+            -> std::pair<evmc_message, bool>;
     };
 }
 

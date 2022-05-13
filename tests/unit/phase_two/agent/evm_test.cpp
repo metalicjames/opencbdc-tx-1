@@ -108,24 +108,26 @@ class evm_test : public ::testing::Test {
     evmc::address m_addr0_addr;
     evmc::address m_addr1_addr;
     evmc::address m_addr2_addr;
-    static constexpr uint64_t default_chain_id = 1;
+    static constexpr uint64_t eth_mainnet_chain_id = 1;
 };
 
 TEST_F(evm_test, initial_test) {
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = m_addr1_addr;
     tx->m_to = m_addr0_addr;
     tx->m_nonce = evmc::uint256be(1);
     tx->m_value = evmc::uint256be(1000);
     tx->m_gas_price = evmc::uint256be(1);
     tx->m_gas_limit = evmc::uint256be(200000);
-    auto sighash
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
                                                        sighash,
                                                        tx->m_type,
-                                                       default_chain_id,
                                                        m_secp_context);
+
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx, m_secp_context);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(), m_addr1_addr);
     auto params = cbdc::make_buffer(*tx);
 
     auto prom = std::promise<void>();
@@ -136,7 +138,8 @@ TEST_F(evm_test, initial_test) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_addr1,
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
             ASSERT_TRUE(
@@ -152,9 +155,9 @@ TEST_F(evm_test, initial_test) {
 }
 
 TEST_F(evm_test, host_storage) {
-    const auto addr1 = evmc::address{};
-    const auto addr2 = evmc::address{0xffffff};
-    const auto addr3 = evmc::address{0xffffff1};
+    const auto addr1 = evmc::address{0xff0000};
+    const auto addr2 = evmc::address{0xff0001};
+    const auto addr3 = evmc::address{0xff0002};
     const auto val1 = evmc::bytes32{};
     const auto val2 = evmc::bytes32{2};
     const auto val3 = evmc::bytes32{3};
@@ -231,19 +234,20 @@ TEST_F(evm_test, host_storage) {
 
 TEST_F(evm_test, simple_send) {
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = m_addr1_addr;
     tx->m_to = m_addr2_addr;
     tx->m_nonce = evmc::uint256be(1);
     tx->m_value = evmc::uint256be(1000);
     tx->m_gas_price = evmc::uint256be(1);
     tx->m_gas_limit = evmc::uint256be(21000);
-    auto sighash
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
                                                        sighash,
                                                        tx->m_type,
-                                                       default_chain_id,
                                                        m_secp_context);
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx, m_secp_context);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(), m_addr1_addr);
     auto params = cbdc::make_buffer(*tx);
 
     auto prom = std::promise<void>();
@@ -254,7 +258,8 @@ TEST_F(evm_test, simple_send) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_addr1,
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](const cbdc::threepc::agent::interface::exec_return_type& res) {
             ASSERT_TRUE(
@@ -271,12 +276,10 @@ TEST_F(evm_test, simple_send) {
     // Test send not working, not enough gas
     tx->m_gas_limit = evmc::uint256be(20999);
     tx->m_nonce = evmc::uint256be(2);
-    auto sighash2
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash2 = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
                                                        sighash2,
                                                        tx->m_type,
-                                                       1,
                                                        m_secp_context);
     params = cbdc::make_buffer(*tx);
     prom = std::promise<void>();
@@ -287,7 +290,8 @@ TEST_F(evm_test, simple_send) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_addr1,
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](const cbdc::threepc::agent::interface::exec_return_type& r) {
             ASSERT_TRUE(std::holds_alternative<
@@ -370,7 +374,6 @@ TEST_F(evm_test, contract_deploy) {
               .value();
 
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = m_addr1_addr;
     tx->m_nonce = evmc::uint256be(1);
     tx->m_value = evmc::uint256be(0);
     tx->m_gas_price = evmc::uint256be(1);
@@ -378,12 +381,10 @@ TEST_F(evm_test, contract_deploy) {
     tx->m_input.resize(bytecode.size());
     std::memcpy(tx->m_input.data(), bytecode.data(), bytecode.size());
 
-    auto sighash
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
                                                        sighash,
                                                        tx->m_type,
-                                                       1,
                                                        m_secp_context);
 
     auto contract_addr = cbdc::threepc::agent::runner::from_hex<evmc::address>(
@@ -391,7 +392,8 @@ TEST_F(evm_test, contract_deploy) {
 
     auto params = cbdc::make_buffer(*tx);
 
-    auto deploy_txid = cbdc::threepc::agent::runner::tx_id(*tx);
+    auto deploy_txid
+        = cbdc::make_buffer(cbdc::threepc::agent::runner::tx_id(tx));
 
     auto prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
     auto fut = prom.get_future();
@@ -401,7 +403,8 @@ TEST_F(evm_test, contract_deploy) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_addr1,
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](cbdc::threepc::agent::interface::exec_return_type res) {
             ASSERT_TRUE(
@@ -434,17 +437,16 @@ TEST_F(evm_test, contract_deploy) {
     tx->m_input.resize(store_input.size());
     std::memcpy(tx->m_input.data(), store_input.data(), store_input.size());
 
-    auto sighash2
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash2 = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
                                                        sighash2,
                                                        tx->m_type,
-                                                       1,
                                                        m_secp_context);
 
     params = cbdc::make_buffer(*tx);
 
-    auto store_txid = cbdc::threepc::agent::runner::tx_id(*tx);
+    auto store_txid
+        = cbdc::make_buffer(cbdc::threepc::agent::runner::tx_id(tx));
 
     prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
     fut = prom.get_future();
@@ -454,7 +456,8 @@ TEST_F(evm_test, contract_deploy) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        m_addr1,
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](cbdc::threepc::agent::interface::exec_return_type r) {
             ASSERT_TRUE(
@@ -502,9 +505,17 @@ TEST_F(evm_test, contract_deploy) {
     std::memcpy(tx->m_input.data(),
                 retrieve_input.data(),
                 retrieve_input.size());
+    tx->m_nonce = evmc::uint256be(3);
+    auto sighash3 = cbdc::threepc::agent::runner::sig_hash(tx);
+    tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv1,
+                                                       sighash3,
+                                                       tx->m_type,
+                                                       m_secp_context);
+
     params = cbdc::make_buffer(*tx);
 
-    auto retrieve_txid = cbdc::threepc::agent::runner::tx_id(*tx);
+    auto retrieve_txid
+        = cbdc::make_buffer(cbdc::threepc::agent::runner::tx_id(tx));
 
     prom = std::promise<cbdc::threepc::agent::runner::evm_tx_receipt>();
     fut = prom.get_future();
@@ -514,7 +525,8 @@ TEST_F(evm_test, contract_deploy) {
         &cbdc::threepc::agent::runner::factory<
             cbdc::threepc::agent::runner::evm_runner>::create,
         m_broker,
-        cbdc::buffer(),
+        cbdc::make_buffer(cbdc::threepc::agent::runner::evm_runner_function::
+                              execute_transaction),
         params,
         [&](cbdc::threepc::agent::interface::exec_return_type r) {
             ASSERT_TRUE(
@@ -675,8 +687,9 @@ TEST_F(evm_test, sighash_check) {
     cbdc::hash_t expected;
     std::memcpy(expected.data(), expected_hash.data(), expected_hash.size());
 
-    ASSERT_EQ(expected,
-              cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id));
+    ASSERT_EQ(
+        expected,
+        cbdc::threepc::agent::runner::sig_hash(tx, eth_mainnet_chain_id));
 }
 
 TEST_F(evm_test, address_test) {
@@ -697,26 +710,23 @@ TEST_F(evm_test, signature_check) {
     tx->m_gas_price = evmc::uint256be(50000000000);
     tx->m_gas_limit = evmc::uint256be(21000);
     tx->m_to = m_addr1_addr;
-    tx->m_from = m_addr0_addr;
 
     tx->m_value = evmc::uint256be(1050000000000000);
 
-    auto sighash
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+    auto sighash = cbdc::threepc::agent::runner::sig_hash(tx);
     tx->m_sig = cbdc::threepc::agent::runner::eth_sign(m_priv0,
                                                        sighash,
                                                        tx->m_type,
-                                                       default_chain_id,
                                                        m_secp_context);
 
-    ASSERT_TRUE(cbdc::threepc::agent::runner::check_signature(tx,
-                                                              default_chain_id,
-                                                              m_secp_context));
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx, m_secp_context);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(), m_addr0_addr);
     tx->m_sig.m_r = evmc::uint256be(0);
-    ASSERT_FALSE(
-        cbdc::threepc::agent::runner::check_signature(tx,
-                                                      default_chain_id,
-                                                      m_secp_context));
+    maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx, m_secp_context);
+    ASSERT_FALSE(maybe_from.has_value());
 }
 
 // from: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#example
@@ -729,7 +739,6 @@ TEST_F(evm_test, signature_check_2) {
     std::memcpy(priv.data(), priv_bytes.data(), priv_bytes.size());
 
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = cbdc::threepc::agent::runner::eth_addr(priv, m_secp_context);
     tx->m_to = cbdc::threepc::agent::runner::from_hex<evmc::address>(
         "3535353535353535353535353535353535353535");
     tx->m_nonce = evmc::uint256be(9);
@@ -743,31 +752,36 @@ TEST_F(evm_test, signature_check_2) {
 
     tx->m_sig.m_v = evmc::uint256be(37);
 
-    auto r_bytes = cbdc::buffer::from_hex("766263aa200659e163ff713c5da1e103608"
-                                          "6677553fe9521bc39d90b3461ef28")
+    auto r_bytes = cbdc::buffer::from_hex("28ef61340bd939bc2195fe537567866003e"
+                                          "1a15d3c71ff63e1590620aa636276")
                        .value();
-    auto s_bytes = cbdc::buffer::from_hex("836d3b6a96b17f294b2164dcf3c955f5cc0"
-                                          "0384b3003b7ec1a767f99d8e9cb67")
+    auto s_bytes = cbdc::buffer::from_hex("67cbe9d8997f761aecb703304b3800ccf55"
+                                          "5c9f3dc64214b297fb1966a3b6d83")
                        .value();
 
     std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
     std::memcpy(tx->m_sig.m_s.bytes, s_bytes.data(), s_bytes.size());
 
     auto sighash
-        = cbdc::threepc::agent::runner::sig_hash(tx, default_chain_id);
+        = cbdc::threepc::agent::runner::sig_hash(tx, eth_mainnet_chain_id);
     auto sig = cbdc::threepc::agent::runner::eth_sign(priv,
                                                       sighash,
                                                       tx->m_type,
-                                                      default_chain_id,
-                                                      m_secp_context);
+                                                      m_secp_context,
+                                                      eth_mainnet_chain_id);
 
     ASSERT_EQ(tx->m_sig.m_r, sig.m_r);
     ASSERT_EQ(tx->m_sig.m_s, sig.m_s);
     ASSERT_EQ(tx->m_sig.m_v, sig.m_v);
 
-    ASSERT_TRUE(cbdc::threepc::agent::runner::check_signature(tx,
-                                                              default_chain_id,
-                                                              m_secp_context));
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(maybe_from.has_value());
+    auto expected_from
+        = cbdc::threepc::agent::runner::eth_addr(priv, m_secp_context);
+    ASSERT_EQ(maybe_from.value(), expected_from);
 }
 
 // From the Box.store example of hardhat
@@ -782,7 +796,6 @@ TEST_F(evm_test, signature_check_3) {
     std::memcpy(priv.data(), priv_bytes.data(), priv_bytes.size());
 
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = cbdc::threepc::agent::runner::eth_addr(priv, m_secp_context);
 
     tx->m_to = cbdc::threepc::agent::runner::from_hex<evmc::address>(
         "5FbDB2315678afecb367f032d93F642f64180aa3");
@@ -805,11 +818,11 @@ TEST_F(evm_test, signature_check_3) {
 
     tx->m_sig.m_v = evmc::uint256be(1);
 
-    auto r_bytes = cbdc::buffer::from_hex("4557c7824a3fc7c7519af4a13d0f47e74fd"
-                                          "84d7e144d2684c72d3ca47e953da9")
+    auto r_bytes = cbdc::buffer::from_hex("a93d957ea43c2dc784264d147e4dd84fe74"
+                                          "70f3da1f49a51c7c73f4a82c75745")
                        .value();
-    auto s_bytes = cbdc::buffer::from_hex("98e68f815d764b8fd341f0b6e82cd67c3be"
-                                          "6ff4405d1a37b90678c2305f46a25")
+    auto s_bytes = cbdc::buffer::from_hex("256af405238c67907ba3d10544ffe63b7cd"
+                                          "62ce8b6f041d38f4b765d818fe698")
                        .value();
 
     std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
@@ -820,24 +833,26 @@ TEST_F(evm_test, signature_check_3) {
     auto sig = cbdc::threepc::agent::runner::eth_sign(priv,
                                                       sighash,
                                                       tx->m_type,
-                                                      hardhat_chain_id,
-                                                      m_secp_context);
+                                                      m_secp_context,
+                                                      hardhat_chain_id);
 
     ASSERT_EQ(tx->m_sig.m_r, sig.m_r);
     ASSERT_EQ(tx->m_sig.m_s, sig.m_s);
     ASSERT_EQ(tx->m_sig.m_v, sig.m_v);
 
-    ASSERT_TRUE(cbdc::threepc::agent::runner::check_signature(tx,
-                                                              hardhat_chain_id,
-                                                              m_secp_context));
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        hardhat_chain_id);
+    ASSERT_TRUE(maybe_from.has_value());
+    auto expected_from
+        = cbdc::threepc::agent::runner::eth_addr(priv, m_secp_context);
+    ASSERT_EQ(maybe_from.value(), expected_from);
 }
 
 // Using TX 0xb4b7a6679ab790549dc3324a7239a6bf7a87ffd4c4c092df523a5b0697763db7
 TEST_F(evm_test, test_encode_tx_legacy) {
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
-    tx->m_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
-                     "0x5699bb600962bc92cb874b2d5c73bb5d502a42ce")
-                     .value();
     tx->m_to = cbdc::threepc::agent::runner::from_hex<evmc::address>(
         "0xf8d3d485f86228a653d58903a2bf956fab7cd9d3");
     tx->m_value = evmc::uint256be(72967931316403995);
@@ -859,7 +874,18 @@ TEST_F(evm_test, test_encode_tx_legacy) {
     std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
     std::memcpy(tx->m_sig.m_s.bytes, s_bytes.data(), s_bytes.size());
 
-    auto buf = cbdc::threepc::agent::runner::tx_encode(tx, 1);
+    auto expected_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                             "0x5699bb600962bc92cb874b2d5c73bb5d502a42ce")
+                             .value();
+    auto recovered_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(recovered_from.has_value());
+    ASSERT_EQ(recovered_from.value(), expected_from);
+
+    auto buf
+        = cbdc::threepc::agent::runner::tx_encode(tx, eth_mainnet_chain_id);
 
     // https://etherscan.io/getRawTx?tx=
     // 0xb4b7a6679ab790549dc3324a7239a6bf7a87ffd4c4c092df523a5b0697763db7
@@ -871,7 +897,7 @@ TEST_F(evm_test, test_encode_tx_legacy) {
 
     ASSERT_EQ(buf, expected);
 
-    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, 1);
+    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, eth_mainnet_chain_id);
     auto expected_id_buf
         = cbdc::buffer::from_hex("b4b7a6679ab790549dc3324a7239a6bf7a87ffd4c4c0"
                                  "92df523a5b0697763db7")
@@ -889,9 +915,6 @@ TEST_F(evm_test, test_encode_tx_legacy) {
 TEST_F(evm_test, test_encode_tx_dynamic_fee) {
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
     tx->m_type = cbdc::threepc::agent::runner::evm_tx_type::dynamic_fee;
-    tx->m_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
-                     "0x236139118b84bd2594051b0b2424f7ebca27a282")
-                     .value();
     tx->m_to = cbdc::threepc::agent::runner::from_hex<evmc::address>(
         "0xcfef8857e9c80e3440a823971420f7fa5f62f020");
     tx->m_value = evmc::uint256be(0);
@@ -924,7 +947,18 @@ TEST_F(evm_test, test_encode_tx_dynamic_fee) {
     std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
     std::memcpy(tx->m_sig.m_s.bytes, s_bytes.data(), s_bytes.size());
 
-    auto buf = cbdc::threepc::agent::runner::tx_encode(tx, 1);
+    auto expected_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                             "0x236139118b84bd2594051b0b2424f7ebca27a282")
+                             .value();
+    auto recovered_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(recovered_from.has_value());
+    ASSERT_EQ(recovered_from.value(), expected_from);
+
+    auto buf
+        = cbdc::threepc::agent::runner::tx_encode(tx, eth_mainnet_chain_id);
 
     // https://etherscan.io/getRawTx?tx=
     // 0x7169cc1d3b1bd3b8379d69b2f0490330cfcb98b019a9c607b48d99b9d44dedde
@@ -938,7 +972,7 @@ TEST_F(evm_test, test_encode_tx_dynamic_fee) {
 
     ASSERT_EQ(buf, expected);
 
-    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, 1);
+    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, eth_mainnet_chain_id);
     auto expected_id_buf
         = cbdc::buffer::from_hex("7169cc1d3b1bd3b8379d69b2f0490330cfcb98b019a9"
                                  "c607b48d99b9d44dedde")
@@ -956,9 +990,6 @@ TEST_F(evm_test, test_encode_tx_dynamic_fee) {
 TEST_F(evm_test, test_encode_tx_access_list) {
     auto tx = std::make_shared<cbdc::threepc::agent::runner::evm_tx>();
     tx->m_type = cbdc::threepc::agent::runner::evm_tx_type::access_list;
-    tx->m_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
-                     "0x000000007cb2bd00ae5eb839930bb7847ae5b039")
-                     .value();
     tx->m_to = cbdc::threepc::agent::runner::from_hex<evmc::address>(
         "0x11b1f53204d03e5529f09eb3091939e4fd8c9cf3");
     tx->m_value = evmc::uint256be(0);
@@ -1093,7 +1124,18 @@ TEST_F(evm_test, test_encode_tx_access_list) {
     std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
     std::memcpy(tx->m_sig.m_s.bytes, s_bytes.data(), s_bytes.size());
 
-    auto buf = cbdc::threepc::agent::runner::tx_encode(tx, 1);
+    auto expected_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                             "0x000000007cb2bd00ae5eb839930bb7847ae5b039")
+                             .value();
+    auto recovered_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(recovered_from.has_value());
+    ASSERT_EQ(recovered_from.value(), expected_from);
+
+    auto buf
+        = cbdc::threepc::agent::runner::tx_encode(tx, eth_mainnet_chain_id);
 
     // https://etherscan.io/getRawTx?tx=
     // 0x2695ed62cf8cb7759d651c43dc28ffc1dd6a26103841c223721b081b55f4d0b5
@@ -1133,7 +1175,7 @@ TEST_F(evm_test, test_encode_tx_access_list) {
 
     ASSERT_EQ(buf, expected);
 
-    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, 1);
+    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, eth_mainnet_chain_id);
     auto expected_id_buf
         = cbdc::buffer::from_hex("2695ed62cf8cb7759d651c43dc28ffc1dd6a26103841"
                                  "c223721b081b55f4d0b5")
@@ -1237,7 +1279,10 @@ TEST_F(evm_test, test_decode_tx_legacy) {
                                         "44e8639c77a19")
                      .value();
 
-    auto maybe_tx = cbdc::threepc::agent::runner::tx_decode(input, 1);
+    auto maybe_tx
+        = cbdc::threepc::agent::runner::tx_decode(input,
+                                                  m_log,
+                                                  eth_mainnet_chain_id);
     ASSERT_TRUE(maybe_tx.has_value());
     auto tx = maybe_tx.value();
     ASSERT_TRUE(tx->m_to.has_value());
@@ -1264,14 +1309,21 @@ TEST_F(evm_test, test_decode_tx_legacy) {
     std::memcpy(expected_m_r.bytes, r_bytes.data(), r_bytes.size());
     std::memcpy(expected_m_s.bytes, s_bytes.data(), s_bytes.size());
 
-    ASSERT_EQ(tx->m_sig.m_r, expected_m_r);
-    ASSERT_EQ(tx->m_sig.m_s, expected_m_s);
+    std::memcpy(tx->m_sig.m_r.bytes, r_bytes.data(), r_bytes.size());
+    std::memcpy(tx->m_sig.m_s.bytes, s_bytes.data(), s_bytes.size());
 
-    // TODO: decode from from signature recovery
-    /*ASSERT_EQ(tx->m_from(),
-       cbdc::threepc::agent::runner::from_hex<evmc::address>(
-                     "0x5699bb600962bc92cb874b2d5c73bb5d502a42ce")
-                     .value());*/
+    // ASSERT_EQ(tx->m_sig.m_r, expected_m_r);
+    // ASSERT_EQ(tx->m_sig.m_s, expected_m_s);
+
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(),
+              cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                  "0x5699bb600962bc92cb874b2d5c73bb5d502a42ce")
+                  .value());
 }
 
 // Using TX 0x7169cc1d3b1bd3b8379d69b2f0490330cfcb98b019a9c607b48d99b9d44dedde
@@ -1291,7 +1343,10 @@ TEST_F(evm_test, test_decode_tx_dynamic_fee) {
                                         "ae9d624cc0790a464")
                      .value();
 
-    auto maybe_tx = cbdc::threepc::agent::runner::tx_decode(input, 1);
+    auto maybe_tx
+        = cbdc::threepc::agent::runner::tx_decode(input,
+                                                  m_log,
+                                                  eth_mainnet_chain_id);
     ASSERT_TRUE(maybe_tx.has_value());
     auto tx = maybe_tx.value();
     ASSERT_EQ(tx->m_type,
@@ -1336,6 +1391,16 @@ TEST_F(evm_test, test_decode_tx_dynamic_fee) {
 
     ASSERT_EQ(expected_m_r, tx->m_sig.m_r);
     ASSERT_EQ(expected_m_s, tx->m_sig.m_s);
+
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(),
+              cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                  "0x236139118b84bd2594051b0b2424f7ebca27a282")
+                  .value());
 }
 
 // Using TX 0x2695ed62cf8cb7759d651c43dc28ffc1dd6a26103841c223721b081b55f4d0b5
@@ -1409,7 +1474,10 @@ TEST_F(evm_test, test_decode_tx_access_list) {
               "81a67a32a4625b11821180b4129184f9dd9cff410eed7f0360bbddef05f")
               .value();
 
-    auto maybe_tx = cbdc::threepc::agent::runner::tx_decode(input, 1);
+    auto maybe_tx
+        = cbdc::threepc::agent::runner::tx_decode(input,
+                                                  m_log,
+                                                  eth_mainnet_chain_id);
     ASSERT_TRUE(maybe_tx.has_value());
     auto tx = maybe_tx.value();
     ASSERT_EQ(tx->m_type,
@@ -1564,7 +1632,8 @@ TEST_F(evm_test, test_decode_tx_access_list) {
     ASSERT_EQ(tx->m_sig.m_r, expected_m_r);
     ASSERT_EQ(tx->m_sig.m_s, expected_m_s);
 
-    auto buf = cbdc::threepc::agent::runner::tx_encode(tx, 1);
+    auto buf
+        = cbdc::threepc::agent::runner::tx_encode(tx, eth_mainnet_chain_id);
 
     // https://etherscan.io/getRawTx?tx=
     // 0x2695ed62cf8cb7759d651c43dc28ffc1dd6a26103841c223721b081b55f4d0b5
@@ -1604,7 +1673,7 @@ TEST_F(evm_test, test_decode_tx_access_list) {
 
     ASSERT_EQ(buf, expected);
 
-    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, 1);
+    auto tx_id = cbdc::threepc::agent::runner::tx_id(tx, eth_mainnet_chain_id);
     auto expected_id_buf
         = cbdc::buffer::from_hex("2695ed62cf8cb7759d651c43dc28ffc1dd6a26103841"
                                  "c223721b081b55f4d0b5")
@@ -1617,10 +1686,145 @@ TEST_F(evm_test, test_decode_tx_access_list) {
 
     ASSERT_EQ(tx_id, expected_id);
 
-    /* TODO: From calculation & assertion
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx,
+                                                        m_secp_context,
+                                                        eth_mainnet_chain_id);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(),
+              cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                  "0x000000007cb2bd00ae5eb839930bb7847ae5b039")
+                  .value());
+}
 
-        tx->m_from = cbdc::threepc::agent::runner::from_hex<evmc::address>(
-                     "0x000000007cb2bd00ae5eb839930bb7847ae5b039")
-                     .value();
-    */
+TEST_F(evm_test, test_failing_tx) {
+    auto maybe_input = cbdc::buffer::from_hex(
+        "02f90ac882cbdc01808085ffffffffff8080b90a73608060405234801561001057600"
+        "080fd5b506040516109f33803806109f3833981810160405281019061003291906101"
+        "6f565b33600160006101000a81548173fffffffffffffffffffffffffffffffffffff"
+        "fff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555082"
+        "6000806101000a81548173ffffffffffffffffffffffffffffffffffffffff0219169"
+        "08373ffffffffffffffffffffffffffffffffffffffff160217905550836002600061"
+        "01000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373fff"
+        "fffffffffffffffffffffffffffffffffffff16021790555081600460006101000a81"
+        "548173ffffffffffffffffffffffffffffffffffffffff021916908373fffffffffff"
+        "fffffffffffffffffffffffffffff160217905550806003819055505050505061023c"
+        "565b6000815190506101548161020e565b92915050565b60008151905061016981610"
+        "225565b92915050565b6000806000806080858703121561018557600080fd5b600061"
+        "019387828801610145565b94505060206101a487828801610145565b9350506040610"
+        "1b587828801610145565b92505060606101c68782880161015a565b91505092959194"
+        "509250565b60006101dd826101e4565b9050919050565b600073fffffffffffffffff"
+        "fffffffffffffffffffffff82169050919050565b6000819050919050565b61021781"
+        "6101d2565b811461022257600080fd5b50565b61022e81610204565b8114610239576"
+        "00080fd5b50565b6107a88061024b6000396000f3fe60806040526004361061004357"
+        "60003560e01c80633ccfd60b1461004f5780635f87256c146100665780637954ec7b1"
+        "461008f578063b51459fe146100ba5761004a565b3661004a57005b600080fd5b3480"
+        "1561005b57600080fd5b506100646100e5565b005b34801561007257600080fd5b506"
+        "1008d6004803603810190610088919061061e565b610163565b005b34801561009b57"
+        "600080fd5b506100a46103a6565b6040516100b19190610656565b60405180910390f"
+        "35b3480156100c657600080fd5b506100cf6104ad565b6040516100dc919061065656"
+        "5b60405180910390f35b600354421080156100fa57506100f96103a6565b5b1561010"
+        "95761010833610163565b5b6101116104ad565b61011a57600080fd5b3373ffffffff"
+        "ffffffffffffffffffffffffffffffff166108fc47908115029060405160006040518"
+        "0830381858888f19350505050158015610160573d6000803e3d6000fd5b50565b6101"
+        "6b6103a6565b61017457600080fd5b600060056000600660003373fffffffffffffff"
+        "fffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff"
+        "16815260200190815260200160002060009054906101000a900473fffffffffffffff"
+        "fffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff"
+        "1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016"
+        "000205411156102d05760056000600660003373ffffffffffffffffffffffffffffff"
+        "ffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908"
+        "15260200160002060009054906101000a900473ffffffffffffffffffffffffffffff"
+        "ffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673fffffffffff"
+        "fffffffffffffffffffffffffffff1681526020019081526020016000206000815480"
+        "9291906102ca906106b9565b91905055505b600560008273fffffffffffffffffffff"
+        "fffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152"
+        "6020019081526020016000206000815480929190610320906106e3565b91905055508"
+        "0600660003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffff"
+        "ffffffffffffffffffffffffffff16815260200190815260200160002060006101000"
+        "a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffff"
+        "ffffffffffffffffffffffffffffffff16021790555050565b6000806000905490610"
+        "1000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffff"
+        "ffffffffffffffffffffffffff163373fffffffffffffffffffffffffffffffffffff"
+        "fff1614806104505750600260009054906101000a900473ffffffffffffffffffffff"
+        "ffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373f"
+        "fffffffffffffffffffffffffffffffffffffff16145b806104a85750600160009054"
+        "906101000a900473ffffffffffffffffffffffffffffffffffffffff1673fffffffff"
+        "fffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffff"
+        "ffffffff16145b905090565b6000600354421061051057600460009054906101000a9"
+        "00473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffff"
+        "ffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161"
+        "49050610606565b60006002905061051e6103a6565b80156105b557503373ffffffff"
+        "ffffffffffffffffffffffffffffffff16600660003373fffffffffffffffffffffff"
+        "fffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260"
+        "200190815260200160002060009054906101000a900473fffffffffffffffffffffff"
+        "fffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1614155b"
+        "156105bf57600190505b80600560003373fffffffffffffffffffffffffffffffffff"
+        "fffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260"
+        "20016000205410159150505b90565b6000813590506106188161075b565b929150505"
+        "65b60006020828403121561063057600080fd5b600061063e84828501610609565b91"
+        "505092915050565b61065081610683565b82525050565b600060208201905061066b6"
+        "000830184610647565b92915050565b600061067c8261068f565b9050919050565b60"
+        "008115159050919050565b600073ffffffffffffffffffffffffffffffffffffffff8"
+        "2169050919050565b6000819050919050565b60006106c4826106af565b9150600082"
+        "14156106d8576106d761072c565b5b600182039050919050565b60006106ee826106a"
+        "f565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        "ffffff8214156107215761072061072c565b5b600182019050919050565b7f4e487b7"
+        "100000000000000000000000000000000000000000000000000000000600052601160"
+        "045260246000fd5b61076481610671565b811461076f57600080fd5b5056fea264697"
+        "0667358221220dccca4eb4632c0b3405398ebba083430c71b6922bd9b7cbc505a16b9"
+        "0223535964736f6c63430008040033000000000000000000000000a650cf6250f9190"
+        "c76f83a6c6cf74f61b03ad2cc000000000000000000000000f3b5f4b93368aaa814a4"
+        "d46920099e5cbf614a9f000000000000000000000000a650cf6250f9190c76f83a6c6"
+        "cf74f61b03ad2cc000000000000000000000000000000000000000000000000000000"
+        "0000000064c001a0a05bf4d68c10b3e84bddaf70dbc81025189fa4d292cc441d2b5af"
+        "1e7765b3d53a0165b7b9034d3a14a0f78f28bc0da3a96941450e1096864cf4c78f2bd"
+        "88a3865a");
+    assert(maybe_input.has_value());
+    auto input = maybe_input.value();
+    auto maybe_tx = cbdc::threepc::agent::runner::tx_decode(input, m_log);
+    ASSERT_TRUE(maybe_tx.has_value());
+    auto tx = maybe_tx.value();
+
+    auto input_buf = cbdc::buffer();
+    input_buf.extend(tx->m_input.size());
+    std::memcpy(input_buf.data(), tx->m_input.data(), input_buf.size());
+    m_log->info("TX Details:\n\n",
+                "m_type:",
+                static_cast<int>(tx->m_type),
+                "m_nonce:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_nonce),
+                "m_value:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_value),
+                "m_gas_price:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_gas_price),
+                "m_gas_limit:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_gas_limit),
+                "m_gas_tip_cap:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_gas_tip_cap),
+                "m_gas_fee_cap:",
+                cbdc::threepc::agent::runner::to_uint64(tx->m_gas_fee_cap),
+                "m_input:",
+                input_buf.to_hex(),
+                "len(m_access_list):",
+                tx->m_access_list.size(),
+                "m_sig.m_r:",
+                cbdc::threepc::agent::runner::to_hex(tx->m_sig.m_r),
+                "m_sig.m_s:",
+                cbdc::threepc::agent::runner::to_hex(tx->m_sig.m_s),
+                "m_sig.m_v:",
+                cbdc::threepc::agent::runner::to_hex(tx->m_sig.m_v));
+
+    if(tx->m_to.has_value()) {
+        m_log->info("m_to:",
+                    cbdc::threepc::agent::runner::to_hex(tx->m_to.value()));
+    }
+
+    auto maybe_from
+        = cbdc::threepc::agent::runner::check_signature(tx, m_secp_context);
+    ASSERT_TRUE(maybe_from.has_value());
+    ASSERT_EQ(maybe_from.value(),
+              cbdc::threepc::agent::runner::from_hex<evmc::address>(
+                  "0xb695A631806BCcA49e9106Cb6Dcc2E7Fd544A592")
+                  .value());
 }

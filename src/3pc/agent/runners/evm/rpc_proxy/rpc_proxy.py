@@ -1,3 +1,4 @@
+from cgi import print_exception
 import struct
 import random
 import asyncio
@@ -8,12 +9,14 @@ import transaction
 import wire
 import time
 import serialization
+import chainparams
 import rlp
 import ecdsa
 import sha3
 import eth_utils
+import account
+import traceback
 
-addrs = {}
 receipts = {}
 blocks = []
 blk_hashes = {}
@@ -74,23 +77,22 @@ async def send_req(payload):
 
 
 async def send_transaction(tx, dry_run):
-    exec_req = wire.Request(tx.from_addr, tx.pack(), dry_run)
+    exec_req = wire.Request(b'\2' if dry_run else b'\0', tx.pack(dry_run), dry_run)
     print('awaiting send')
     (success, resp) = await send_req(exec_req.pack())
     if not success:
         raise RuntimeError('RPC request failed')
-    print('got resp in send', resp)
+    print('got resp in send')
 
     r = wire.Response.unpack(resp)
     if r.success is not None:
-        receipt_buf = r.success[tx.txid()]
-        if receipt_buf is None:
-            raise ValueError('Invalid response')
-        (receipt, _) = transaction.Receipt.unpack(receipt_buf)
-        if not dry_run:
-            addrs[tx.from_addr] = addrs.get(tx.from_addr, 1) + 1
-        return receipt
+        print('success!')
+        if tx.txid() not in r.success:
+            raise ValueError('Did not find receipt for txid {} in response'.format(tx.txid()))
 
+        receipt_buf = r.success[tx.txid()]
+        (receipt, _) = transaction.Receipt.unpack(receipt_buf)
+        return receipt
     raise RuntimeError(r.failure)
 
 
@@ -109,21 +111,53 @@ async def send_tx(param):
 
 def chain_id():
     print('chain_id')
-    return '0xcbdc'
+    return hex(chainparams.chain_id)
 
-
-def tx_count(address, block):
-    print('tx_count', address, block)
-    # TODO: retrieve this info from shards
+async def read_account(address):
     addr_buf = bytes.fromhex(address[2:])
-    if addr_buf in addrs:
-        return hex(addrs[addr_buf])
-    return hex(1)
+    exec_req = wire.Request(b'\1', addr_buf, True)
+    (success, resp) = await send_req(exec_req.pack())
+    if not success:
+        raise RuntimeError('RPC request failed')
+    r = wire.Response.unpack(resp)
+    if r.success is not None:
+        account_buf = r.success[addr_buf]
+        if account_buf is None:
+            raise ValueError('Invalid response')
+        (acc, _) = account.Account.unpack(account_buf)
+        return acc
+    raise RuntimeError(r.failure)
 
+async def read_account_code(address):
+    addr_buf = bytes.fromhex(address[2:])
+    exec_req = wire.Request(b'\3', addr_buf, True)
+    (success, resp) = await send_req(exec_req.pack())
+    if not success:
+        raise RuntimeError('RPC request failed')
+    r = wire.Response.unpack(resp)
+    if r.success is not None:
+        code_buf = r.success[addr_buf]
+        if code_buf is None:
+            raise ValueError('Invalid response')
+
+        code_len = struct.unpack('Q', buf[:serialization.UINT64_LEN])[0]
+        buf_end = serialization.UINT64_LEN + code_len
+        code = code_buf[serialization.UINT64_LEN:buf_end]
+        return code
+    raise RuntimeError(r.failure)
+
+async def tx_count(address, block):
+    assert(block == "pending")
+    print('tx_count', address, block)
+    account = await read_account(address)
+    print('got account, nonce:', account.nonce)
+    return hex(account.nonce + 1)
 
 def make_block(txid):
-    null_hash = bytearray(32).hex()
-    parent = blocks[-1]['parentHash'] if len(blocks) > 0 else null_hash
+    null_hash = "0x" + bytearray(32).hex()
+    if txid is None:
+        txid = null_hash
+    parent = blocks[-1]['hash'] if len(blocks) > 0 else null_hash
     t = '0x' + struct.pack('>Q', int(time.time())).hex()
     null_addr = bytearray(20).hex()
     blk = {
@@ -151,6 +185,9 @@ def get_block(blk_id, full):
     if blk_id in blk_hashes:
         return blocks[blk_hashes[blk_id]]
 
+    if blk_id == "latest":
+        return blocks[-1]
+
     hex_str = blk_id[2:]
     if len(hex_str) % 2 != 0:
         hex_str = '0' + hex_str
@@ -171,94 +208,31 @@ def block_number():
 
 
 async def send_raw_transaction(tx):
-    print('send_raw_transaction')
-    if tx[2:4] == '02':
-        tx_buf = bytes.fromhex(tx[4:])
-        txs = rlp.decode(tx_buf)
-        value = serialization.unpack_uint256be(txs[6])
-        nonce = serialization.unpack_uint256be(txs[1])
-        gas_price = serialization.unpack_uint256be(txs[3])
-        gas_limit = serialization.unpack_uint256be(txs[4])
-        to_addr = txs[5]
-        input_data = txs[7]
-
-        r = eth_utils.big_endian_to_int(txs[10])
-        y = eth_utils.big_endian_to_int(txs[11])
-        v = eth_utils.big_endian_to_int(txs[9])
-
-        rlp_payload = b'\x02' + rlp.encode(txs[:-3])
-    else:
-        tx_buf = bytes.fromhex(tx[2:])
-        tx_dat = rlp.decode(tx_buf)
-        value = serialization.unpack_uint256be(tx_dat[4])
-        nonce = serialization.unpack_uint256be(tx_dat[0])
-        gas_price = serialization.unpack_uint256be(tx_dat[1])
-        gas_limit = serialization.unpack_uint256be(tx_dat[2])
-        to_addr = tx_dat[3]
-        input_data = tx_dat[5]
-
-        r = eth_utils.big_endian_to_int(tx_dat[7])
-        y = eth_utils.big_endian_to_int(tx_dat[8])
-        v = eth_utils.big_endian_to_int(tx_dat[6])
-
-        if v != 27 and v != 28:
-            chainid_int = serialization.unpack_hex_uint256be(chain_id())
-            v -= 35 + (chainid_int * 2)
-
-            tx_dat[6] = chainid_int
-            tx_dat[7] = bytes()
-            tx_dat[8] = bytes()
-
-            rlp_payload = rlp.encode(tx_dat)
-        else:
-            v -= 27
-            rlp_payload = rlp.encode(tx_dat[:-3])
-
-    s = ecdsa.ecdsa.Signature(r, y)
-    sighash = sha3.keccak_256(rlp_payload).digest()
-
-    g = ecdsa.curves.SECP256k1.generator
-
-    (pk0, pk1) = s.recover_public_keys(eth_utils.big_endian_to_int(sighash), g)
-    use_pk = pk0 if v == 0 else pk1
-
-    pk_buf = use_pk.point.to_bytes(encoding='uncompressed')
-    addr = sha3.keccak_256(pk_buf[1:]).digest()[-20:]
-
-    print(v, r, y)
-
-    t = transaction.Transaction(
-        addr,
-        to_addr,
-        value,
-        nonce,
-        gas_price,
-        gas_limit,
-        input_data,
-        v,
-        r,
-        y)
-    print(t.to_dict().items())
-    txid = sha3.keccak_256(bytes.fromhex(tx[2:])).hexdigest()
-    print(t.pack().hex())
-    print('awaiting')
-    ret = await send_transaction(t, False)
-    print('got res')
-    retval = '0x' + txid
-    print(retval)
-    make_block(retval)
-    receipts[retval] = ret
-    if ret.create_address is not None:
-        contract_code['0x' + ret.create_address.hex()] = ret.output_data
-    print('returning', ret)
-    return retval
+    t = transaction.Transaction.unpack_rlp(bytes.fromhex(tx[2:]))
+    #print('tx from:', t.from_addr())
+    try:
+        print('awaiting')
+        ret = await send_transaction(t, False)
+        print('received receipt:', ret)
+        retval = '0x' + t.txid().hex()
+        print('txid:', retval)
+        make_block(retval)
+        print('made block')
+        receipts[retval] = ret
+        print('stored receipt')
+        if ret.create_address is not None:
+            contract_code['0x' + ret.create_address.hex()] = ret.output_data
+        return retval
+    except Exception as e:
+        traceback.print_exc()
+        raise e
 
 
 def get_tx_receipt(txid):
     print('get_tx_receipt', txid)
     ret = receipts[txid].to_dict()
     ret['transactionHash'] = txid
-    print(ret)
+    # print(ret)
     return ret
 
 
@@ -271,30 +245,41 @@ def gas_price():
     print('gas_price')
     return '0x0'
 
-
 def get_tx(txid):
     print('get_tx', txid)
     r = receipts[txid]
+    print('receipt:', r)
     tx = r.tx.to_dict()
     tx['hash'] = txid
     return tx
 
-
-def get_code(addr, state):
+async def get_code(addr, state):
     print('get_code', addr, state)
-    ret = '0x' + contract_code[addr].hex()
-    print(ret)
-    return ret
+    account_code = await read_account_code(addr)
+    return '0x' + account.code.hex()
 
-
-def get_balance(addr, state):
+async def get_balance(addr, state):
     print('get_balance', addr, state)
-    # TODO: implement
-    return '0xffffffffffffffffffffffffffffff'
-
+    account = await read_account(addr)
+    return hex(account.balance)
 
 def accounts():
     return []
+
+def fee_history(blocks_str, end_block_str, percentiles: list):
+    print('fee_history', blocks_str, end_block_str, percentiles)
+    hex_str = blocks_str[2:]
+    if len(hex_str) % 2 != 0:
+        hex_str = '0' + hex_str
+    num_blocks = eth_utils.big_endian_to_int(bytes.fromhex(hex_str))
+    ret = {}
+    pct_count = len(percentiles)
+    end_block = len(blocks) if end_block_str == "latest" else int(end_block_str)
+    ret["oldestBlock"] = end_block-num_blocks
+    ret["reward"] = [["0x0"]*pct_count]*num_blocks
+    ret["baseFeePerGas"] = ["0x0"]*(num_blocks+1)
+    ret["gasUsedRatio"] = [0.0]*num_blocks
+    return ret
 
 
 def get_logs(params):
@@ -325,6 +310,9 @@ def get_logs(params):
 
     return [r.to_dict() for r in ret]
 
+def increase_time(offset : int):
+    # Not supported
+    return False
 
 class JSONRPCProtocol(asyncio.Protocol):
     def __init__(self, json_rpc_manager):
@@ -340,7 +328,7 @@ class JSONRPCProtocol(asyncio.Protocol):
             self.transport.close()
             return
 
-        print('got data', len(data))
+        # print('got data', len(data))
         self.connection.receive_data(data)
         self.deliver_events()
 
@@ -351,7 +339,7 @@ class JSONRPCProtocol(asyncio.Protocol):
             more_events = self.handle_event(event)
 
     def handle_event(self, event) -> bool:
-        print('got HTTP event', type(event))
+        # print('got HTTP event', type(event))
         if isinstance(event, h11.Request):
             if event.method != b'POST':
                 raise RuntimeError('Method must be POST')
@@ -431,6 +419,7 @@ def main():
     d['eth_call'] = call
     d['eth_chainId'] = chain_id
     d['eth_getBlockByNumber'] = get_block
+    d['eth_getBlockByHash'] = get_block
     d['eth_getTransactionCount'] = tx_count
     d['eth_estimateGas'] = estimate_gas
     d['eth_blockNumber'] = block_number
@@ -444,9 +433,11 @@ def main():
     d['eth_getBalance'] = get_balance
     d['eth_accounts'] = accounts
     d['eth_getLogs'] = get_logs
+    d['eth_feeHistory'] = fee_history
+    d['evm_increaseTime'] = increase_time
 
     json_rpc_manager = ajsonrpc.manager.AsyncJSONRPCResponseManager(
-        dispatcher=d, is_server_error_verbose=True)
+        dispatcher=d, is_server_error_verbose=True, )
     # Each client connection will create a new protocol instance
     coro = loop.create_server(
         lambda: JSONRPCProtocol(json_rpc_manager),

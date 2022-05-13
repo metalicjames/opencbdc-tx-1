@@ -44,7 +44,9 @@ namespace cbdc::threepc::agent::runner {
         return true;
     }
 
-    auto tx_decode(const cbdc::buffer& buf, uint64_t chain_id)
+    auto tx_decode(const cbdc::buffer& buf,
+                   const std::shared_ptr<logging::log>& logger,
+                   uint64_t chain_id)
         -> std::optional<
             std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>> {
         uint8_t type_byte{};
@@ -65,6 +67,7 @@ namespace cbdc::threepc::agent::runner {
         auto rlp_tx = maybe_rlp_tx.value();
 
         if(!is_valid_rlp_tx(tx->m_type, rlp_tx)) {
+            logger->error("tx is not valid rlp");
             return std::nullopt;
         }
 
@@ -74,6 +77,7 @@ namespace cbdc::threepc::agent::runner {
             auto tx_chain_id
                 = rlp_tx.value_at(element++).value<evmc::uint256be>();
             if(to_uint64(tx_chain_id) != chain_id) {
+                logger->error("tx is wrong chain ID");
                 return std::nullopt;
             }
         }
@@ -114,6 +118,10 @@ namespace cbdc::threepc::agent::runner {
             if(small_v >= eip155_v_offset) {
                 auto tx_chain_id = (small_v - eip155_v_offset) / 2;
                 if(tx_chain_id != chain_id) {
+                    logger->error("tx is wrong chain ID (",
+                                  tx_chain_id,
+                                  ") where expected (",
+                                  chain_id);
                     return std::nullopt;
                 }
             }

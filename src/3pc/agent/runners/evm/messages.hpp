@@ -53,7 +53,6 @@ namespace cbdc::threepc::agent::runner {
 
     struct evm_tx {
         evm_tx_type m_type{};
-        evmc::address m_from{};
         std::optional<evmc::address> m_to{};
         evmc::uint256be m_value{};
         evmc::uint256be m_nonce{};
@@ -64,6 +63,11 @@ namespace cbdc::threepc::agent::runner {
         std::vector<uint8_t> m_input{};
         evm_access_list m_access_list{};
         evm_sig m_sig;
+    };
+
+    struct evm_dryrun_tx {
+        evmc::address m_from;
+        evm_tx m_tx;
     };
 
     struct evm_log {

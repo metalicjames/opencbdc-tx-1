@@ -19,37 +19,27 @@
 #include <secp256k1.h>
 
 namespace cbdc::threepc::agent::runner {
-    static constexpr size_t recoverable_signature_size = 65;
-
-    auto
-    eth_sign(const privkey_t& key,
-             hash_t& hash,
-             evm_tx_type type,
-             uint64_t chain_id,
-             const std::unique_ptr<secp256k1_context,
-                                   decltype(&secp256k1_context_destroy)>& ctx)
-        -> evm_sig {
-        secp256k1_ecdsa_recoverable_signature sig;
-        [[maybe_unused]] const auto sig_ret = secp256k1_ecdsa_sign_recoverable(
-            ctx.get(),
-            &sig,
-            hash.data(),
-            key.data(),
-            secp256k1_nonce_function_rfc6979,
-            nullptr);
-        assert(sig_ret == 1);
-        auto sig_buf = cbdc::buffer();
-        sig_buf.append(&sig, recoverable_signature_size);
+    auto secp256k1_ecdsa_recoverable_signature_to_evm_sig(
+        secp256k1_ecdsa_recoverable_signature& sig,
+        evm_tx_type type,
+        uint64_t chain_id) -> evm_sig {
         auto esig = evm_sig{};
-        std::memcpy(&esig.m_r.bytes, sig_buf.data(), sizeof(esig.m_r.bytes));
-        std::memcpy(&esig.m_s.bytes,
-                    sig_buf.data_at(sizeof(esig.m_r.bytes)),
-                    sizeof(esig.m_s.bytes));
+
+        std::reverse_copy(&sig.data[0],
+                          &sig.data[sizeof(esig.m_r.bytes)],
+                          esig.m_r.bytes);
+        std::reverse_copy(
+            &sig.data[sizeof(esig.m_r.bytes)],
+            &sig.data[sizeof(esig.m_r.bytes) + sizeof(esig.m_s.bytes)],
+            esig.m_s.bytes);
+
         uint8_t v{};
-        std::memcpy(
-            &v,
-            sig_buf.data_at(sizeof(esig.m_r.bytes) + sizeof(esig.m_s.bytes)),
-            sizeof(v));
+        std::reverse_copy(
+            &sig.data[sizeof(esig.m_r.bytes) + sizeof(esig.m_s.bytes)],
+            &sig.data[sizeof(esig.m_r.bytes) + sizeof(esig.m_s.bytes)
+                      + sizeof(v)],
+            &v);
+
         uint64_t v_large = v;
         if(type == evm_tx_type::legacy) {
             // Mutate v based on EIP155 and chain ID
@@ -61,36 +51,72 @@ namespace cbdc::threepc::agent::runner {
         return esig;
     }
 
-    auto check_signature(
-        const std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>& tx,
-        uint64_t chain_id,
-        const std::unique_ptr<secp256k1_context,
-                              decltype(&secp256k1_context_destroy)>& ctx)
-        -> bool {
-        auto sighash = sig_hash(tx, chain_id);
+    auto evm_sig_to_secp256k1_ecdsa_recoverable_signature(const evm_sig& esig,
+                                                          evm_tx_type type,
+                                                          uint64_t chain_id)
+        -> std::optional<secp256k1_ecdsa_recoverable_signature> {
+        auto sig = secp256k1_ecdsa_recoverable_signature{};
 
-        secp256k1_ecdsa_recoverable_signature sig;
-        std::memcpy(&sig.data,
-                    &tx->m_sig.m_r.bytes,
-                    sizeof(tx->m_sig.m_r.bytes));
-        std::memcpy(&sig.data[sizeof(tx->m_sig.m_r.bytes)],
-                    &tx->m_sig.m_s.bytes,
-                    sizeof(tx->m_sig.m_s.bytes));
+        std::reverse_copy(esig.m_r.bytes,
+                          &esig.m_r.bytes[sizeof(esig.m_r.bytes)],
+                          sig.data);
+        std::reverse_copy(esig.m_s.bytes,
+                          &esig.m_s.bytes[sizeof(esig.m_s.bytes)],
+                          &sig.data[sizeof(esig.m_r.bytes)]);
 
         // Recover v mutation based on EIP155 and chain ID 1
-        auto v_large = to_uint64(tx->m_sig.m_v);
-        if(tx->m_type == evm_tx_type::legacy) {
+        auto v_large = to_uint64(esig.m_v);
+        if(type == evm_tx_type::legacy) {
             v_large -= eip155_v_offset;
             v_large -= (chain_id * 2);
             if(v_large > std::numeric_limits<uint8_t>::max()) {
-                return false;
+                return std::nullopt;
             }
         }
         auto v = static_cast<uint8_t>(v_large);
-        std::memcpy(&sig.data[sizeof(tx->m_sig.m_r.bytes)
-                              + sizeof(tx->m_sig.m_s.bytes)],
-                    &v,
-                    sizeof(v));
+        std::memcpy(&sig.data[sizeof(sig.data) - sizeof(v)], &v, sizeof(v));
+
+        return sig;
+    }
+
+    auto
+    eth_sign(const privkey_t& key,
+             hash_t& hash,
+             evm_tx_type type,
+             const std::unique_ptr<secp256k1_context,
+                                   decltype(&secp256k1_context_destroy)>& ctx,
+             uint64_t chain_id) -> evm_sig {
+        secp256k1_ecdsa_recoverable_signature sig;
+        [[maybe_unused]] const auto sig_ret = secp256k1_ecdsa_sign_recoverable(
+            ctx.get(),
+            &sig,
+            hash.data(),
+            key.data(),
+            secp256k1_nonce_function_rfc6979,
+            nullptr);
+        assert(sig_ret == 1);
+        return secp256k1_ecdsa_recoverable_signature_to_evm_sig(sig,
+                                                                type,
+                                                                chain_id);
+    }
+
+    auto check_signature(
+        const std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>& tx,
+        const std::unique_ptr<secp256k1_context,
+                              decltype(&secp256k1_context_destroy)>& ctx,
+        uint64_t chain_id) -> std::optional<evmc::address> {
+        auto sighash = sig_hash(tx, chain_id);
+
+        auto maybe_sig
+            = evm_sig_to_secp256k1_ecdsa_recoverable_signature(tx->m_sig,
+                                                               tx->m_type,
+                                                               chain_id);
+
+        if(!maybe_sig.has_value()) {
+            return std::nullopt;
+        }
+
+        auto sig = maybe_sig.value();
 
         // Recover pubkey
         auto pk = std::make_unique<secp256k1_pubkey>();
@@ -100,12 +126,10 @@ namespace cbdc::threepc::agent::runner {
                                       &sig,
                                       sighash.data());
         if(rec_ret != 1) {
-            return false;
+            return std::nullopt;
         }
 
-        auto recovered_addr = eth_addr(pk, ctx);
-
-        return (recovered_addr == tx->m_from);
+        return eth_addr(pk, ctx);
     }
 
     auto

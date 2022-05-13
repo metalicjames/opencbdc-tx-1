@@ -10,6 +10,7 @@
 #include "util/common/buffer.hpp"
 #include "util/common/hash.hpp"
 #include "util/common/keys.hpp"
+#include "util/common/logging.hpp"
 
 #include <evmc/evmc.hpp>
 #include <evmc/hex.hpp>
@@ -34,11 +35,13 @@ namespace cbdc::threepc::agent::runner {
 
     /// Converts a given buffer to an evm_tx
     /// \param buf buffer containing the transaction to decode
+    /// \param logger logger to output any parsing errors to
     /// \param chain_id the expected chain ID for the transaction. If the
     // transaction contains a different chain ID this method will return
     // std::nullopt
     /// \return the evm_tx that was decoded
     auto tx_decode(const cbdc::buffer& buf,
+                   const std::shared_ptr<logging::log>& logger,
                    uint64_t chain_id = opencbdc_chain_id)
         -> std::optional<
             std::shared_ptr<cbdc::threepc::agent::runner::evm_tx>>;

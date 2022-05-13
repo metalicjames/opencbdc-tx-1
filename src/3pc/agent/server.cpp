@@ -62,6 +62,10 @@ namespace cbdc::threepc::agent::rpc {
     auto server::request_handler(request req,
                                  server_type::response_callback_type callback)
         -> bool {
+        m_log->trace("received request with m_function ",
+                     req.m_function.to_hex(),
+                     " and param size ",
+                     req.m_param.size());
         auto id = m_next_id++;
         auto a = [&]() {
             auto agent = std::make_shared<impl>(

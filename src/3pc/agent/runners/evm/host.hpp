@@ -144,6 +144,8 @@ namespace cbdc::threepc::agent::runner {
 
         [[nodiscard]] auto get_key(const cbdc::buffer& key, bool write) const
             -> std::optional<broker::value_type>;
+
+        auto create(const evmc_message& msg) noexcept -> evmc::result;
     };
 }
 

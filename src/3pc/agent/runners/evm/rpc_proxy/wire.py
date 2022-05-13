@@ -24,6 +24,7 @@ class Response:
 
     @classmethod
     def unpack(cls, buf: bytes):
+        print('unpacking result from {} bytes'.format(len(buf)))
         (success_or_failure,) = struct.unpack('B', buf[:1])
         if success_or_failure == 0:
             updates = serialization.unpack(dict, buf[1:])

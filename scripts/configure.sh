@@ -122,5 +122,3 @@ cmake --build . --parallel
 cp ./lib/keccak/libkeccak.a /usr/local/lib
 cp -r ../include/ethash /usr/local/include
 cd ../..
-
-pip3 install -r src/3pc/agent/runners/evm/rpc_proxy/requirements.txt
