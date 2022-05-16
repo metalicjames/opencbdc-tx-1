@@ -8,6 +8,11 @@ end="\033[0m"
 
 set -e
 
+SUDO=''
+if (( $EUID != 0 )); then
+    SUDO='sudo'
+fi
+
 CMAKE_BUILD_TYPE="Debug"
 if [[ "$BUILD_RELEASE" == "1" ]]; then
   CMAKE_BUILD_TYPE="Release"
@@ -21,33 +26,31 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  brew install leveldb llvm@11 googletest lcov make python3
+  brew install llvm@13 googletest lcov make python3 wget cmake
   echo -e "${cyan}To run clang-tidy, you must add it to your path. Ex: ln -s /usr/local/opt/llvm@11/bin/clang-tidy /usr/local/bin/clang-tidy${end}"
 else
-  apt update
-  apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common unzip python3 python3-pip
+  $SUDO apt update
+  $SUDO apt install -y build-essential wget cmake libgtest-dev libgmock-dev lcov git software-properties-common unzip python3 python3-pip
 
-  # GitHub Actions in .github/workflows/validation.yml will attempt to cache and reuse leveldb built in this block.
-  # If a folder called leveldb-1.22 exists, skip the build step and go straight to install.
-  # See https://docs.github.com/en/free-pro-team@latest/actions/guides/caching-dependencies-to-speed-up-workflows
-  echo -e "${green}Building LevelDB from sources...${end}"
-  wget https://github.com/google/leveldb/archive/1.22.tar.gz
-  rm -rf "leveldb-1.22-${CMAKE_BUILD_TYPE}"
-  tar xzvf 1.22.tar.gz
-  rm -rf 1.22.tar.gz
-  mv leveldb-1.22 "leveldb-1.22-${CMAKE_BUILD_TYPE}"
-  cd "leveldb-1.22-${CMAKE_BUILD_TYPE}"
-  eval "cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLEVELDB_BUILD_TESTS=0 -DLEVELDB_BUILD_BENCHMARKS=0 -DBUILD_SHARED_LIBS=0 ."
-  make -j$CPUS
-  make install
-  cd ..
-
-  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-  add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main"
-  apt install -y clang-format-13 clang-tidy-13
-  ln -s -f $(which clang-format-13) /usr/local/bin/clang-format
-  ln -s -f $(which clang-tidy-13) /usr/local/bin/clang-tidy
+  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | $SUDO apt-key add -
+  $SUDO add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main"
+  $SUDO apt install -y clang-format-13 clang-tidy-13
+  $SUDO ln -s -f $(which clang-format-13) /usr/local/bin/clang-format
+  $SUDO ln -s -f $(which clang-tidy-13) /usr/local/bin/clang-tidy
 fi
+
+LEVELDB_VERSION="1.23"
+echo -e "${green}Building LevelDB from sources...${end}"
+wget https://github.com/google/leveldb/archive/${LEVELDB_VERSION}.tar.gz
+rm -rf "leveldb-${LEVELDB_VERSION}-${CMAKE_BUILD_TYPE}"
+tar xzvf ${LEVELDB_VERSION}.tar.gz
+rm -rf ${LEVELDB_VERSION}.tar.gz
+mv leveldb-${LEVELDB_VERSION} "leveldb-${LEVELDB_VERSION}-${CMAKE_BUILD_TYPE}"
+cd "leveldb-${LEVELDB_VERSION}-${CMAKE_BUILD_TYPE}"
+eval "cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLEVELDB_BUILD_TESTS=0 -DLEVELDB_BUILD_BENCHMARKS=0 -DBUILD_SHARED_LIBS=0 ."
+make -j$CPUS
+$SUDO make install
+cd ..
 
 NURAFT_VERSION="1.3.0"
 echo -e "${green}Building NuRaft from sources...${end}"
@@ -71,8 +74,8 @@ cd build
 eval "cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DDISABLE_SSL=1 .."
 eval "make -j$CPUS static_lib"
 
-cp libnuraft.a /usr/local/lib
-cp -r ../include/libnuraft /usr/local/include
+$SUDO cp libnuraft.a /usr/local/lib
+$SUDO cp -r ../include/libnuraft /usr/local/include
 
 cd ../..
 
@@ -81,10 +84,11 @@ tar zxf lua-5.4.3.tar.gz
 rm -rf lua-5.4.3.tar.gz
 cd lua-5.4.3
 make
-make install
+$SUDO make install
 cd ..
 
-wget https://raw.githubusercontent.com/llvm/llvm-project/e837ce2a32369b2e9e8e5d60270c072c7dd63827/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -P /usr/local/bin
+wget https://raw.githubusercontent.com/llvm/llvm-project/e837ce2a32369b2e9e8e5d60270c072c7dd63827/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py
+$SUDO mv run-clang-tidy.py /usr/local/bin
 
 wget https://github.com/ethereum/evmc/archive/eda05c6866ac06bd93d62b605cbec5839d85c221.zip
 unzip eda05c6866ac06bd93d62b605cbec5839d85c221.zip
@@ -94,7 +98,7 @@ mkdir build
 cd build
 cmake ..
 make
-make install
+$SUDO make install
 cd ../..
 
 wget https://github.com/ethereum/evmone/archive/be870917e8cefd2b125bd27375dd9d2409ff1f68.zip
@@ -107,7 +111,7 @@ mkdir ./evmc/.git
 cmake -S . -B build
 cmake --build build --parallel
 cd build
-make install
+$SUDO make install
 cd ../..
 rm -rf evmone-be870917e8cefd2b125bd27375dd9d2409ff1f68
 
@@ -119,6 +123,6 @@ mkdir build
 cd build
 cmake -DETHASH_BUILD_ETHASH=OFF -DETHASH_BUILD_TESTS=OFF ..
 cmake --build . --parallel
-cp ./lib/keccak/libkeccak.a /usr/local/lib
-cp -r ../include/ethash /usr/local/include
+$SUDO cp ./lib/keccak/libkeccak.a /usr/local/lib
+$SUDO cp -r ../include/ethash /usr/local/include
 cd ../..
