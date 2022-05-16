@@ -17,6 +17,7 @@ add_executable(run_unit_tests archiver_test.cpp
                               phase_two/agent/broker_test.cpp
                               phase_two/agent/runner_test.cpp
                               phase_two/agent/evm_test.cpp
+                              phase_two/agent/math_test.cpp
                               phase_two/runtime_locking_shard/impl_test.cpp
                               phase_two/util.cpp
                               raft_test.cpp

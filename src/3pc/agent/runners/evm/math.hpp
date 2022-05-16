@@ -18,7 +18,7 @@ namespace cbdc::threepc::agent::runner {
     auto operator*(const evmc::uint256be& lhs, const evmc::uint256be& rhs)
         -> evmc::uint256be;
 
-    auto operator>>(const evmc::uint256be& lhs, size_t count)
+    auto operator<<(const evmc::uint256be& lhs, size_t count)
         -> evmc::uint256be;
 }
 
