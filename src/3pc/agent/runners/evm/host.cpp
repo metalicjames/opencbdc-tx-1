@@ -36,7 +36,11 @@ namespace cbdc::threepc::agent::runner {
 
     auto evm_host::get_account(const evmc::address& addr, bool write) const
         -> std::optional<evm_account> {
-        m_log->trace("EVM request account:", to_hex(addr));
+        m_log->trace(this,
+                     "EVM request account:",
+                     to_hex(addr),
+                     "- Write:",
+                     write);
 
         if(is_precompile(addr)) {
             // Precompile contract, return empty account
@@ -48,6 +52,12 @@ namespace cbdc::threepc::agent::runner {
         if(it != m_accounts.end() && (it->second.second || !write)) {
             return it->second.first;
         }
+
+        m_log->trace(
+            this,
+            "EVM request account not in cache or wrong lock, getting [",
+            to_hex(addr),
+            "]");
 
         auto addr_key = make_buffer(addr);
         auto maybe_v = get_key(addr_key, write);
@@ -100,19 +110,22 @@ namespace cbdc::threepc::agent::runner {
                      to_hex(key),
                      "val:",
                      to_hex(value));
+
         auto ret_val = std::optional<evmc_storage_status>();
         auto maybe_acc = get_account(addr, false);
         if(!maybe_acc.has_value()) {
-            maybe_acc = get_account(addr, true);
-            assert(!maybe_acc.has_value());
+            if(!m_dry_run) {
+                maybe_acc = get_account(addr, true);
+                assert(!maybe_acc.has_value());
+            }
             maybe_acc = evm_account();
             ret_val = EVMC_STORAGE_ADDED;
             maybe_acc.value().m_modified.insert(key);
-            m_accounts[addr] = {maybe_acc.value(), true};
+            m_accounts[addr] = {maybe_acc.value(), !m_dry_run};
         }
         auto& acc = maybe_acc.value();
 
-        auto maybe_storage = get_account_storage(addr, key, true);
+        auto maybe_storage = get_account_storage(addr, key, !m_dry_run);
         auto prev_value = maybe_storage.value_or(evmc::bytes32{});
 
         auto modified = acc.m_modified.find(key) != acc.m_modified.end();
@@ -128,7 +141,7 @@ namespace cbdc::threepc::agent::runner {
                 acc.m_modified.insert(key);
             }
         }
-        m_account_storage[addr][key] = {value, true};
+        m_account_storage[addr][key] = {value, !m_dry_run};
         m_accounts[addr].first = acc;
         assert(ret_val.has_value());
         return ret_val.value();
@@ -243,21 +256,21 @@ namespace cbdc::threepc::agent::runner {
                                  msg.input_size);
 
         if(res.status_code == EVMC_SUCCESS) {
-            auto maybe_acc = get_account(new_addr, true);
+            auto maybe_acc = get_account(new_addr, !m_dry_run);
             if(!maybe_acc.has_value()) {
                 maybe_acc = evm_account();
             }
             auto& acc = maybe_acc.value();
-            m_accounts[new_addr] = {acc, true};
+            m_accounts[new_addr] = {acc, !m_dry_run};
 
-            auto maybe_code = get_account_code(new_addr, true);
+            auto maybe_code = get_account_code(new_addr, !m_dry_run);
             if(!maybe_code.has_value()) {
                 maybe_code = evm_account_code();
             }
             auto& code = maybe_code.value();
             code.resize(res.output_size);
             std::memcpy(code.data(), res.output_data, res.output_size);
-            m_account_code[new_addr] = {code, true};
+            m_account_code[new_addr] = {code, !m_dry_run};
         }
 
         if(msg.depth == 0) {
@@ -429,7 +442,7 @@ namespace cbdc::threepc::agent::runner {
 
     void evm_host::insert_account(const evmc::address& addr,
                                   const evm_account& acc) {
-        m_accounts.insert({addr, {acc, true}});
+        m_accounts.insert({addr, {acc, !m_dry_run}});
         m_accessed_addresses.insert(addr);
         m_init_state = m_accounts;
     }
@@ -437,7 +450,7 @@ namespace cbdc::threepc::agent::runner {
     void evm_host::transfer(const evmc::address& from,
                             const evmc::address& to,
                             const evmc::uint256be& value) {
-        auto maybe_acc = get_account(from, true);
+        auto maybe_acc = get_account(from, !m_dry_run);
         assert(maybe_acc.has_value());
         auto& acc = maybe_acc.value();
         auto val = value;
@@ -448,16 +461,16 @@ namespace cbdc::threepc::agent::runner {
             acc.m_destruct = true;
         }
         acc.m_balance = acc.m_balance - val;
-        m_accounts[from] = {acc, true};
+        m_accounts[from] = {acc, !m_dry_run};
 
-        auto maybe_to_acc = get_account(to, true);
+        auto maybe_to_acc = get_account(to, !m_dry_run);
         if(!maybe_to_acc.has_value()) {
             // Create the to account if it doesn't exist
             maybe_to_acc = evm_account();
         }
         auto& to_acc = maybe_to_acc.value();
         to_acc.m_balance = to_acc.m_balance + val;
-        m_accounts[to] = {to_acc, true};
+        m_accounts[to] = {to_acc, !m_dry_run};
     }
 
     void evm_host::finalize(int64_t gas_left, int64_t gas_used) {
@@ -574,6 +587,8 @@ namespace cbdc::threepc::agent::runner {
         auto res_prom
             = std::promise<broker::interface::try_lock_return_type>();
         auto res_fut = res_prom.get_future();
+
+        m_log->trace("get_key", key.to_hex(), "write =", write);
 
         auto ret = m_try_lock_callback(
             key,

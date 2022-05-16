@@ -190,6 +190,13 @@ namespace cbdc::threepc::agent {
                 "handle_try_lock_request while not in function_started state");
             return false;
         }
+
+        if(m_dry_run && locktype == broker::lock_type::write) {
+            m_log->warn(
+                "handle_try_lock_request of type write when m_dry_run = true");
+            return false;
+        }
+
         return m_broker->try_lock(
             m_ticket_number.value(),
             std::move(key),
@@ -211,7 +218,7 @@ namespace cbdc::threepc::agent {
         std::visit(
             overloaded{
                 [&](broker::value_type v) {
-                    m_log->trace("Starting function m_function ", v.to_hex());
+                    m_log->trace(this, "Starting function m_function ", v.to_hex());
                     m_state = state::function_started;
                     m_runner = m_runner_factory(
                         m_log,
