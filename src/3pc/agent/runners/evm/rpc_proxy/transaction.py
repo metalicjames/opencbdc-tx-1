@@ -379,7 +379,7 @@ class Transaction:
             ret["maxFeePerGas"] = serialization.pack_uint256be_hex(self.gas_fee_cap)
 
         else:
-            ret["gasPrice"] = "0x" + serialization.pack_uint256be_hex(self.gas_limit)
+            ret["gasPrice"] = serialization.pack_uint256be_hex(self.gas_limit)
 
         if self.txtype != TX_TYPE_LEGACY:
             ret["accessList"] = [at.to_dict() for at in self.access_list]
