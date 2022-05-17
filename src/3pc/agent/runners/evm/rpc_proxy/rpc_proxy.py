@@ -17,10 +17,16 @@ import eth_utils
 import account
 import traceback
 
-receipts = {}
+AGENT_REQUEST_TYPE_EXECUTE_TX = b'\0'
+AGENT_REQUEST_TYPE_READ_ACCOUNT = b'\1'
+AGENT_REQUEST_TYPE_DRYRUN_TRANSACTION = b'\2'
+AGENT_REQUEST_TYPE_READ_ACCOUNT_CODE = b'\3'
+AGENT_REQUEST_TYPE_GET_TRANSACTION = b'\4'
+AGENT_REQUEST_TYPE_GET_TRANSACTION_RECEIPT = b'\5'
+
+
 blocks = []
 blk_hashes = {}
-contract_code = {}
 
 requests = {}
 
@@ -77,23 +83,20 @@ async def send_req(payload):
 
 
 async def send_transaction(tx, dry_run):
-    exec_req = wire.Request(b'\2' if dry_run else b'\0', tx.pack(dry_run), dry_run)
-    print('awaiting send')
-    (success, resp) = await send_req(exec_req.pack())
-    if not success:
-        raise RuntimeError('RPC request failed')
-    print('got resp in send')
+    request_type = (
+        AGENT_REQUEST_TYPE_DRYRUN_TRANSACTION
+        if dry_run
+        else AGENT_REQUEST_TYPE_EXECUTE_TX
+    )
+    success = await raw_request_from_agent(request_type, tx.pack(dry_run), dry_run)
+    if tx.txid() not in success:
+        raise ValueError(
+            'Did not find receipt for txid {} in response'.format(tx.txid())
+        )
 
-    r = wire.Response.unpack(resp)
-    if r.success is not None:
-        print('success!')
-        if tx.txid() not in r.success:
-            raise ValueError('Did not find receipt for txid {} in response'.format(tx.txid()))
-
-        receipt_buf = r.success[tx.txid()]
-        (receipt, _) = transaction.Receipt.unpack(receipt_buf)
-        return receipt
-    raise RuntimeError(r.failure)
+    receipt_buf = success[tx.txid()]
+    (receipt, _) = transaction.Receipt.unpack(receipt_buf)
+    return receipt
 
 
 async def call(param, state):
@@ -113,48 +116,65 @@ def chain_id():
     print('chain_id')
     return hex(chainparams.chain_id)
 
-async def read_account(address):
-    addr_buf = bytes.fromhex(address[2:])
-    exec_req = wire.Request(b'\1', addr_buf, True)
+
+async def raw_request_from_agent(request_type: bytes, param: bytes, dry_run: bool):
+    exec_req = wire.Request(request_type, param, dry_run)
     (success, resp) = await send_req(exec_req.pack())
     if not success:
         raise RuntimeError('RPC request failed')
     r = wire.Response.unpack(resp)
     if r.success is not None:
-        account_buf = r.success[addr_buf]
-        if account_buf is None:
-            raise ValueError('Invalid response')
-        (acc, _) = account.Account.unpack(account_buf)
-        return acc
+        return r.success
     raise RuntimeError(r.failure)
+
+
+async def request_from_agent(request_type: bytes, param_hex: str, dry_run: bool):
+    param_buf = bytes.fromhex(param_hex[2:])
+    success = await raw_request_from_agent(request_type, param_buf, dry_run)
+    result_buf = success[param_buf]
+    if result_buf is None:
+        raise ValueError('Invalid response')
+    return result_buf
+
+
+async def read_transaction_receipt(txid):
+    receipt_buf = await request_from_agent(
+        AGENT_REQUEST_TYPE_GET_TRANSACTION_RECEIPT, txid, True
+    )
+    (receipt, _) = transaction.Receipt.unpack(receipt_buf)
+    return receipt
+
+
+async def read_transaction(txid):
+    tx_buf = await request_from_agent(AGENT_REQUEST_TYPE_GET_TRANSACTION, txid, True)
+    (tx, _) = transaction.Transaction.unpack(tx_buf)
+    return tx
+
+
+async def read_account(address):
+    acc_buf = await request_from_agent(AGENT_REQUEST_TYPE_READ_ACCOUNT, address, True)
+    (acc, _) = account.Account.unpack(acc_buf)
+    return acc
+
 
 async def read_account_code(address):
-    addr_buf = bytes.fromhex(address[2:])
-    exec_req = wire.Request(b'\3', addr_buf, True)
-    (success, resp) = await send_req(exec_req.pack())
-    if not success:
-        raise RuntimeError('RPC request failed')
-    r = wire.Response.unpack(resp)
-    if r.success is not None:
-        code_buf = r.success[addr_buf]
-        if code_buf is None:
-            raise ValueError('Invalid response')
+    code_buf = await request_from_agent(AGENT_REQUEST_TYPE_READ_ACCOUNT_CODE, address, True)
+    code_len = struct.unpack('Q', buf[: serialization.UINT64_LEN])[0]
+    buf_end = serialization.UINT64_LEN + code_len
+    code = code_buf[serialization.UINT64_LEN : buf_end]
+    return code
 
-        code_len = struct.unpack('Q', buf[:serialization.UINT64_LEN])[0]
-        buf_end = serialization.UINT64_LEN + code_len
-        code = code_buf[serialization.UINT64_LEN:buf_end]
-        return code
-    raise RuntimeError(r.failure)
 
 async def tx_count(address, block):
-    assert(block == "pending")
+    assert block == 'pending'
     print('tx_count', address, block)
     account = await read_account(address)
     print('got account, nonce:', account.nonce)
     return hex(account.nonce + 1)
 
+
 def make_block(txid):
-    null_hash = "0x" + bytearray(32).hex()
+    null_hash = '0x' + bytearray(32).hex()
     if txid is None:
         txid = null_hash
     parent = blocks[-1]['hash'] if len(blocks) > 0 else null_hash
@@ -185,7 +205,7 @@ def get_block(blk_id, full):
     if blk_id in blk_hashes:
         return blocks[blk_hashes[blk_id]]
 
-    if blk_id == "latest":
+    if blk_id == 'latest':
         return blocks[-1]
 
     hex_str = blk_id[2:]
@@ -209,7 +229,7 @@ def block_number():
 
 async def send_raw_transaction(tx):
     t = transaction.Transaction.unpack_rlp(bytes.fromhex(tx[2:]))
-    #print('tx from:', t.from_addr())
+    # print('tx from:', t.from_addr())
     try:
         print('awaiting')
         ret = await send_transaction(t, False)
@@ -218,19 +238,16 @@ async def send_raw_transaction(tx):
         print('txid:', retval)
         make_block(retval)
         print('made block')
-        receipts[retval] = ret
-        print('stored receipt')
-        if ret.create_address is not None:
-            contract_code['0x' + ret.create_address.hex()] = ret.output_data
         return retval
     except Exception as e:
         traceback.print_exc()
         raise e
 
 
-def get_tx_receipt(txid):
+async def get_tx_receipt(txid):
     print('get_tx_receipt', txid)
-    ret = receipts[txid].to_dict()
+    receipt = await read_transaction_receipt(txid)
+    ret = receipt.to_dict()
     ret['transactionHash'] = txid
     # print(ret)
     return ret
@@ -245,26 +262,30 @@ def gas_price():
     print('gas_price')
     return '0x0'
 
-def get_tx(txid):
+
+async def get_tx(txid):
     print('get_tx', txid)
-    r = receipts[txid]
-    print('receipt:', r)
-    tx = r.tx.to_dict()
-    tx['hash'] = txid
-    return tx
+    tx = await read_transaction(txid)
+    ret = tx.to_dict()
+    ret['hash'] = txid
+    return ret
+
 
 async def get_code(addr, state):
     print('get_code', addr, state)
     account_code = await read_account_code(addr)
     return '0x' + account.code.hex()
 
+
 async def get_balance(addr, state):
     print('get_balance', addr, state)
     account = await read_account(addr)
     return serialization.pack_uint256be_hex(account.balance)
 
+
 def accounts():
     return []
+
 
 def fee_history(blocks_str, end_block_str, percentiles: list):
     print('fee_history', blocks_str, end_block_str, percentiles)
@@ -274,11 +295,11 @@ def fee_history(blocks_str, end_block_str, percentiles: list):
     num_blocks = eth_utils.big_endian_to_int(bytes.fromhex(hex_str))
     ret = {}
     pct_count = len(percentiles)
-    end_block = len(blocks) if end_block_str == "latest" else int(end_block_str)
-    ret["oldestBlock"] = end_block-num_blocks
-    ret["reward"] = [["0x0"]*pct_count]*num_blocks
-    ret["baseFeePerGas"] = ["0x0"]*(num_blocks+1)
-    ret["gasUsedRatio"] = [0.0]*num_blocks
+    end_block = len(blocks) if end_block_str == 'latest' else int(end_block_str)
+    ret['oldestBlock'] = end_block - num_blocks
+    ret['reward'] = [['0x0'] * pct_count] * num_blocks
+    ret['baseFeePerGas'] = ['0x0'] * (num_blocks + 1)
+    ret['gasUsedRatio'] = [0.0] * num_blocks
     return ret
 
 
@@ -310,9 +331,11 @@ def get_logs(params):
 
     return [r.to_dict() for r in ret]
 
-def increase_time(offset : int):
+
+def increase_time(offset: int):
     # Not supported
     return False
+
 
 class JSONRPCProtocol(asyncio.Protocol):
     def __init__(self, json_rpc_manager):
@@ -353,8 +376,8 @@ class JSONRPCProtocol(asyncio.Protocol):
 
         if isinstance(event, h11.EndOfMessage):
             task = asyncio.create_task(
-                self.json_rpc_manager.get_payload_for_payload(
-                    self.request_body))
+                self.json_rpc_manager.get_payload_for_payload(self.request_body)
+            )
             task.add_done_callback(self.handle_task_result)
             self.request_body = ''
             return True
@@ -376,8 +399,10 @@ class JSONRPCProtocol(asyncio.Protocol):
 
     def handle_task_result(self, task):
         res = task.result()
-        headers = [('content-type', 'application/json'),
-                   ('content-length', str(len(res)))]
+        headers = [
+            ('content-type', 'application/json'),
+            ('content-length', str(len(res))),
+        ]
         response = h11.Response(status_code=200, headers=headers)
         self.send(response)
         self.send(h11.Data(data=res.encode('utf-8')))
@@ -385,7 +410,10 @@ class JSONRPCProtocol(asyncio.Protocol):
 
         print('responding with:', res)
 
-        if self.connection.our_state == h11.DONE and self.connection.their_state == h11.DONE:
+        if (
+            self.connection.our_state == h11.DONE
+            and self.connection.their_state == h11.DONE
+        ):
             self.connection.start_next_cycle()
             self.deliver_events()
             self.transport.resume_reading()
@@ -402,15 +430,12 @@ def main():
     parser.add_argument('--listen_host', default='0.0.0.0')
     parser.add_argument('--listen_port', type=int, default=8080)
     args = parser.parse_args()
-    print('connecting to agent on:',
-          args.agent_host + ":" + str(args.agent_port))
-    print('rpc proxy listening on:',
-          args.listen_host + ":" + str(args.listen_port))
+    print('connecting to agent on:', args.agent_host + ':' + str(args.agent_port))
+    print('rpc proxy listening on:', args.listen_host + ':' + str(args.listen_port))
 
     # TODO: convert this file to a class and remove the globals
     global reader, writer
-    reader, writer = loop.run_until_complete(
-        connect(args.agent_host, args.agent_port))
+    reader, writer = loop.run_until_complete(connect(args.agent_host, args.agent_port))
 
     make_block(None)
 
@@ -437,12 +462,14 @@ def main():
     d['evm_increaseTime'] = increase_time
 
     json_rpc_manager = ajsonrpc.manager.AsyncJSONRPCResponseManager(
-        dispatcher=d, is_server_error_verbose=True, )
+        dispatcher=d,
+        is_server_error_verbose=True,
+    )
     # Each client connection will create a new protocol instance
     coro = loop.create_server(
         lambda: JSONRPCProtocol(json_rpc_manager),
         host=args.listen_host,
-        port=args.listen_port
+        port=args.listen_port,
     )
     server = loop.run_until_complete(coro)
     loop.create_task(do_recv())

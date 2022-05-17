@@ -20,6 +20,8 @@ namespace cbdc::threepc::agent::runner {
         read_account,
         dryrun_transaction,
         read_account_code,
+        get_transaction,
+        get_transaction_receipt,
     };
     class evm_runner : public interface {
       public:
@@ -58,6 +60,8 @@ namespace cbdc::threepc::agent::runner {
         auto run_execute_real_transaction() -> bool;
         auto run_execute_dryrun_transaction() -> bool;
         auto run_get_account_code() -> bool;
+        auto run_get_transaction() -> bool;
+        auto run_get_transaction_receipt() -> bool;
         auto run_execute_transaction(std::shared_ptr<evm_tx>& tx,
                                      const evmc::address& from,
                                      bool dry_run) -> bool;

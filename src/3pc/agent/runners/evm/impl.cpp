@@ -11,6 +11,7 @@
 #include "serialization.hpp"
 #include "signature.hpp"
 #include "util.hpp"
+#include "util/serialization/format.hpp"
 
 #include <evmone/evmone.h>
 
@@ -47,7 +48,8 @@ namespace cbdc::threepc::agent::runner {
         static constexpr uint8_t invalid_function = 255;
         uint8_t f = invalid_function;
         std::memcpy(&f, m_function.data(), sizeof(uint8_t));
-        if(f > static_cast<uint8_t>(evm_runner_function::read_account_code)) {
+        if(f > static_cast<uint8_t>(
+               evm_runner_function::get_transaction_receipt)) {
             m_log->error("Unknown EVM runner function ", f);
             m_result_callback(error_code::function_load);
             return true;
@@ -62,6 +64,10 @@ namespace cbdc::threepc::agent::runner {
                 return run_execute_dryrun_transaction();
             case evm_runner_function::read_account_code:
                 return run_get_account_code();
+            case evm_runner_function::get_transaction:
+                return run_get_transaction();
+            case evm_runner_function::get_transaction_receipt:
+                return run_get_transaction_receipt();
         }
 
         return false;
@@ -80,6 +86,55 @@ namespace cbdc::threepc::agent::runner {
                 auto v = std::get<broker::value_type>(res);
                 auto ret = runtime_locking_shard::state_update_type();
                 ret[m_param] = v;
+                m_result_callback(ret);
+            });
+
+        return true;
+    }
+
+    auto evm_runner::run_get_transaction_receipt() -> bool {
+        m_try_lock_callback(
+            m_param,
+            broker::lock_type::read,
+            [this](const broker::interface::try_lock_return_type& res) {
+                if(!std::holds_alternative<broker::value_type>(res)) {
+                    m_log->error(
+                        "Failed to read transaction receipt from shards");
+                    m_result_callback(error_code::function_load);
+                    return;
+                }
+                auto v = std::get<broker::value_type>(res);
+                auto ret = runtime_locking_shard::state_update_type();
+                ret[m_param] = v;
+                m_result_callback(ret);
+            });
+
+        return true;
+    }
+
+    auto evm_runner::run_get_transaction() -> bool {
+        m_try_lock_callback(
+            m_param,
+            broker::lock_type::read,
+            [this](const broker::interface::try_lock_return_type& res) {
+                if(!std::holds_alternative<broker::value_type>(res)) {
+                    m_log->error(
+                        "Failed to read transaction receipt from shards");
+                    m_result_callback(error_code::function_load);
+                    return;
+                }
+                auto v = std::get<broker::value_type>(res);
+                auto ret = runtime_locking_shard::state_update_type();
+
+                m_log->trace("Read transaction receipt: ", v.to_hex());
+
+                auto maybe_receipt = cbdc::from_buffer<evm_tx_receipt>(v);
+                if(!maybe_receipt.has_value()) {
+                    m_log->error("Failed to deserialize transaction receipt");
+                    m_result_callback(error_code::function_load);
+                    return;
+                }
+                ret[m_param] = make_buffer(maybe_receipt.value().m_tx);
                 m_result_callback(ret);
             });
 
@@ -285,11 +340,20 @@ namespace cbdc::threepc::agent::runner {
                     // Increment nonce
                     from_acc.m_nonce = from_acc.m_nonce + evmc::uint256be(1);
                     host->insert_account(m.sender, from_acc);
-                    // Capture the tx as a shared_ptr here so the memory
-                    // backing msg.input_data remains in scope.
-                    m_evm_thread = std::thread([this, m, host, tx]() {
-                        exec(m, host);
-                    });
+
+                    const auto txid_key = make_buffer(tx_id(tx));
+                    // Lock TXID key to store receipt later
+                    m_try_lock_callback(
+                        txid_key,
+                        broker::lock_type::write,
+                        [this, m, host, tx](
+                            const broker::interface::try_lock_return_type&) {
+                            // Capture the tx as a shared_ptr here so the
+                            // memory backing msg.input_data remains in scope.
+                            m_evm_thread = std::thread([this, m, host, tx]() {
+                                exec(m, host);
+                            });
+                        });
                 });
         } else {
             // Capture the tx as a shared_ptr here so the memory backing

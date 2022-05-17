@@ -218,7 +218,9 @@ namespace cbdc::threepc::agent {
         std::visit(
             overloaded{
                 [&](broker::value_type v) {
-                    m_log->trace(this, "Starting function m_function ", v.to_hex());
+                    m_log->trace(this,
+                                 "Starting function m_function ",
+                                 v.to_hex());
                     m_state = state::function_started;
                     m_runner = m_runner_factory(
                         m_log,

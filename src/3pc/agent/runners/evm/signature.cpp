@@ -72,7 +72,8 @@ namespace cbdc::threepc::agent::runner {
             if(v_large > std::numeric_limits<uint8_t>::max()) {
                 return std::nullopt;
             }
-        } else if(type == evm_tx_type::legacy && v_large >= pre_eip155_v_offset) {
+        } else if(type == evm_tx_type::legacy
+                  && v_large >= pre_eip155_v_offset) {
             v_large -= pre_eip155_v_offset;
         }
         auto v = static_cast<uint8_t>(v_large);
