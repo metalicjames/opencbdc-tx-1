@@ -8,6 +8,7 @@
 #include "directory/impl.hpp"
 #include "format.hpp"
 #include "impl.hpp"
+#include "runners/evm/math.hpp"
 #include "runners/evm/format.hpp"
 #include "runners/evm/messages.hpp"
 #include "runtime_locking_shard/client.hpp"
@@ -21,6 +22,8 @@
 #include "util/serialization/format.hpp"
 
 #include <csignal>
+
+using namespace cbdc::threepc::agent::runner;
 
 auto main(int argc, char** argv) -> int {
     auto log = std::make_shared<cbdc::logging::log>(
@@ -98,7 +101,9 @@ auto main(int argc, char** argv) -> int {
         = cbdc::buffer::from_hex("b695a631806bcca49e9106cb6dcc2e7fd544a592")
               .value();
     auto acc = cbdc::threepc::agent::runner::evm_account();
-    acc.m_balance = evmc::uint256be(std::numeric_limits<uint64_t>::max());
+    static constexpr uint64_t decimals = 1000000000000000000;
+    static constexpr uint64_t initial_mint = 1000000;
+    acc.m_balance = evmc::uint256be(initial_mint) * evmc::uint256be(decimals);
     auto acc_buf = cbdc::make_buffer(acc);
     auto seed_success = std::promise<bool>();
     auto seed_fut = seed_success.get_future();

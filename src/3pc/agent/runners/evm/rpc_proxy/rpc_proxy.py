@@ -261,7 +261,7 @@ async def get_code(addr, state):
 async def get_balance(addr, state):
     print('get_balance', addr, state)
     account = await read_account(addr)
-    return hex(account.balance)
+    return serialization.pack_uint256be_hex(account.balance)
 
 def accounts():
     return []
