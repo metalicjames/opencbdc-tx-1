@@ -21,22 +21,15 @@ const argv = yargs(hideBin(process.argv))
         description: 'Private key 1 to use',
         type: 'string'
     })
-    .option('privateKey2', {
-        description: 'Private key 2 to use',
-        type: 'string'
-    })
     .help()
     .alias('help', 'h').argv;
 
 const rpc = argv.rpc ?? "http://localhost:8080/"
 const privateKey1 = argv.privateKey1 ?? "0xc904c738c315f2cb1d551baf7a01b3c163a68c502bf989b12c0d034fef26785e"
-const privateKey2 = argv.privateKey2 ?? "0xc904c738c315f2cb1d551baf7a01b3c163a68c502bf989b12c0d034fef26785f"
 const contractAddress = argv.contractAddress
 
 const provider1 = new ethers.providers.JsonRpcProvider(rpc);
 const wallet1 = new ethers.Wallet(privateKey1, provider1);
-const provider2 = new ethers.providers.JsonRpcProvider(rpc);
-const wallet2 = new ethers.Wallet(privateKey2, provider2);
 
 let run = true;
 
@@ -51,5 +44,5 @@ if (argv._.includes('deploy-erc20')) {
         console.error("Please specify the address of the ERC20 contract to benchmark")
         process.exit(-1)
     }
-    await benchERC20(contractAddress, wallet1, wallet2, shouldContinue)
+    await benchERC20(contractAddress, wallet1, rpc, shouldContinue)
 }
