@@ -1,0 +1,20 @@
+{
+  "name": "3pc-evm-loadgen",
+  "version": "1.0.0",
+  "description": "Load generator for 3PC EVM",
+  "main": "index.js",
+  "scripts": {
+    "deploy-erc20": "node index.mjs deploy-erc20",
+    "bench-erc20": "node index.js bench-erc20"
+  },
+  "author": "MIT Digital Currency Initiative, Federal Reserve Bank of Boston",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
+    "await-sleep": "^0.0.1",
+    "chai": "^4.3.6",
+    "ethers": "^5.6.6",
+    "hardhat": "^2.9.5",
+    "yargs": "^17.5.1"
+  }
+}
