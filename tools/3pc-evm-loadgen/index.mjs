@@ -4,6 +4,7 @@ import { ethers } from 'ethers'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import { NonceManager } from "@ethersproject/experimental";
+import benchBase from './base/bench.mjs'
 
 const argv = yargs(hideBin(process.argv))
 
@@ -18,6 +19,7 @@ const argv = yargs(hideBin(process.argv))
             type: 'number',
         }
     })
+    .command('bench-base', 'Benchmarks base token transfers')
     .option('rpc', {
         description: 'RPC Endpoint to talk to',
         type: 'string'
@@ -30,7 +32,7 @@ const argv = yargs(hideBin(process.argv))
     .alias('help', 'h').argv;
 
 const rpc = argv.rpc ?? "http://localhost:8080/"
-const privateKey1 = argv.privateKey1 ?? "0xc904c738c315f2cb1d551baf7a01b3c163a68c502bf989b12c0d034fef26785e"
+const privateKey1 = argv.privateKey1 ?? "0x32a49a8408806e7a2862bca482c7aabd27e846f673edc8fb14501cab0d1d8ebe"
 const contractAddress = argv.contractAddress
 
 const provider1 = new ethers.providers.StaticJsonRpcProvider(rpc);
@@ -51,4 +53,6 @@ if (argv._.includes('deploy-erc20')) {
     }
     const parallelism = argv.parallelism ?? 1
     await benchERC20(contractAddress, wallet1, rpc, parallelism, shouldContinue)
+} else if (argv._.includes('bench-base')) {
+    await benchBase(wallet1, rpc)
 }
