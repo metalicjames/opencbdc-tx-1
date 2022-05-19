@@ -11,8 +11,7 @@ const benchERC20 = async (contractAddress, wallet1, rpc, shouldContinue) => {
     const tokenOwner = await ERC20(wallet1, contractAddress);
     console.log(`Creating ${NUM_PAIRS * 2} random wallets`)
 
-    const wallets = [...Array(NUM_PAIRS * 2).keys()].map((k) => {
-        const provider = new ethers.providers.JsonRpcProvider(rpc);
+        const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
         return Wallet.createRandom().connect(provider)
     });
 

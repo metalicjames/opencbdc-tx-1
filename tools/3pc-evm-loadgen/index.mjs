@@ -28,8 +28,7 @@ const rpc = argv.rpc ?? "http://localhost:8080/"
 const privateKey1 = argv.privateKey1 ?? "0xc904c738c315f2cb1d551baf7a01b3c163a68c502bf989b12c0d034fef26785e"
 const contractAddress = argv.contractAddress
 
-const provider1 = new ethers.providers.JsonRpcProvider(rpc);
-const wallet1 = new ethers.Wallet(privateKey1, provider1);
+const provider1 = new ethers.providers.StaticJsonRpcProvider(rpc);
 
 let run = true;
 
