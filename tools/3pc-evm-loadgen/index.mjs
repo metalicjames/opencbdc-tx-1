@@ -3,6 +3,7 @@ import benchERC20 from './erc20/bench.mjs'
 import { ethers } from 'ethers'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
+import { NonceManager } from "@ethersproject/experimental";
 
 const argv = yargs(hideBin(process.argv))
 
@@ -29,6 +30,7 @@ const privateKey1 = argv.privateKey1 ?? "0xc904c738c315f2cb1d551baf7a01b3c163a68
 const contractAddress = argv.contractAddress
 
 const provider1 = new ethers.providers.StaticJsonRpcProvider(rpc);
+const wallet1 = new NonceManager(newethers.Wallet(privateKey1, provider1));
 
 let run = true;
 

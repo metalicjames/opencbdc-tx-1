@@ -3,6 +3,7 @@ import fs from 'fs';
 import sleep from 'await-sleep';
 import { ERC20 } from './factory.mjs';
 import { hrtime } from 'process';
+import { NonceManager } from "@ethersproject/experimental";
 
 const NUM_PAIRS = 20
 
@@ -15,8 +16,10 @@ const benchERC20 = async (contractAddress, wallet1, rpc, shouldContinue) => {
         return Wallet.createRandom().connect(provider)
     });
 
-    const ercClients = await Promise.all(wallets.map((wallet) => {
-        return ERC20(wallet, contractAddress)
+    const signers = wallets.map((w) => new NonceManager(w))
+
+    const ercClients = await Promise.all(signers.map((signer) => {
+        return ERC20(signer, contractAddress)
     }))
 
     console.log(`Dispensing tokens to all ${NUM_PAIRS * 2} random wallets`)
