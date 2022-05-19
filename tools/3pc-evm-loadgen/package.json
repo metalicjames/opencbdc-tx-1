@@ -5,11 +5,12 @@
   "main": "index.js",
   "scripts": {
     "deploy-erc20": "node index.mjs deploy-erc20",
-    "bench-erc20": "node index.js bench-erc20"
+    "bench-erc20": "node index.mjs bench-erc20"
   },
   "author": "MIT Digital Currency Initiative, Federal Reserve Bank of Boston",
   "license": "MIT",
   "dependencies": {
+    "@ethersproject/experimental": "^5.6.1",
     "@openzeppelin/contracts": "^4.6.0",
     "await-sleep": "^0.0.1",
     "chai": "^4.3.6",

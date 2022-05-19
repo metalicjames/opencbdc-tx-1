@@ -13,6 +13,10 @@ const argv = yargs(hideBin(process.argv))
             description: 'The contract address of the ERC20 to benchmark',
             type: 'string',
         },
+        parallelism: {
+            description: 'Number of wallet pairs to exchange tokens between in parallel',
+            type: 'number',
+        }
     })
     .option('rpc', {
         description: 'RPC Endpoint to talk to',
@@ -45,5 +49,6 @@ if (argv._.includes('deploy-erc20')) {
         console.error("Please specify the address of the ERC20 contract to benchmark")
         process.exit(-1)
     }
-    await benchERC20(contractAddress, wallet1, rpc, shouldContinue)
+    const parallelism = argv.parallelism ?? 1
+    await benchERC20(contractAddress, wallet1, rpc, parallelism, shouldContinue)
 }
