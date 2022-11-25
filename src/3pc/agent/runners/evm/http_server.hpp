@@ -6,6 +6,7 @@
 #ifndef CBDC_UNIVERSE0_SRC_3PC_AGENT_HTTP_SERVER_H_
 #define CBDC_UNIVERSE0_SRC_3PC_AGENT_HTTP_SERVER_H_
 
+#include "3pc/agent/runners/evm/impl.hpp"
 #include "agent/impl.hpp"
 #include "agent/server_interface.hpp"
 #include "broker/interface.hpp"
@@ -67,9 +68,116 @@ namespace cbdc::threepc::agent::rpc {
             Json::Value params,
             const server_type::result_callback_type& callback) -> bool;
 
-        auto exec_tx(bool dry_run,
-                     cbdc::buffer function,
-                     cbdc::buffer runner_params,
+        auto handle_chain_id(Json::Value params,
+                             const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_call(Json::Value params,
+                         const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_send_transaction(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+
+        auto
+        handle_estimate_gas(Json::Value params,
+                            const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_client_version(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+        auto
+        handle_gas_price(Json::Value params,
+                         const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_get_code(Json::Value params,
+                             const server_type::result_callback_type& callback)
+            -> bool;
+        auto
+        handle_get_balance(Json::Value params,
+                           const server_type::result_callback_type& callback)
+            -> bool;
+        auto handle_accounts(Json::Value params,
+                             const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_get_transaction_by_hash(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+
+        auto handle_get_transaction_receipt(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+
+        auto
+        handle_not_supported(Json::Value params,
+                             const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto
+        handle_block_number(Json::Value params,
+                            const server_type::result_callback_type& callback)
+            -> bool;
+        auto
+        handle_get_block(Json::Value params,
+                         const server_type::result_callback_type& callback)
+            -> bool;
+        auto handle_get_block_txcount(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+        auto
+        handle_get_block_tx(Json::Value params,
+                            const server_type::result_callback_type& callback)
+            -> bool;
+        auto
+        handle_fee_history(Json::Value params,
+                           const server_type::result_callback_type& callback)
+            -> bool;
+        auto handle_get_logs(Json::Value params,
+                             const server_type::result_callback_type& callback)
+            -> bool;
+        auto handle_get_storage_at(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+
+        auto handle_sha3(Json::Value params,
+                         const server_type::result_callback_type& callback)
+            -> bool;
+
+        auto handle_error(Json::Value params,
+                          const server_type::result_callback_type& callback,
+                          int code,
+                          std::string message) -> bool;
+
+        auto handle_number(Json::Value params,
+                           const server_type::result_callback_type& callback,
+                           uint64_t number) -> bool;
+
+        auto handle_boolean(Json::Value params,
+                            const server_type::result_callback_type& callback,
+                            bool result) -> bool;
+
+        auto handle_decode_raw_transaction(
+            Json::Value params,
+            const server_type::result_callback_type& callback) -> bool;
+
+        auto
+        parse_evm_log_query(Json::Value params,
+                            const server_type::result_callback_type& callback)
+            -> std::optional<threepc::agent::runner::evm_log_query>;
+
+        auto fetch_block(Json::Value params,
+                         const server_type::result_callback_type& callback,
+                         std::function<void(interface::exec_return_type,
+                                            cbdc::buffer)> res_cb) -> bool;
+
+        auto exec_tx(const server_type::result_callback_type& callback,
+                     runner::evm_runner_function f_type,
+                     cbdc::buffer& runner_params,
+                     bool dry_run,
                      std::function<void(interface::exec_return_type)> res_cb)
             -> bool;
     };

@@ -32,6 +32,48 @@ namespace cbdc::threepc::agent::runner {
         return evmc::hex(evmc::bytes(b.bytes, sizeof(b.bytes)));
     }
 
+    auto to_hex_trimmed(const evmc::bytes32& b, const std::string& prefix)
+        -> std::string {
+        size_t offset = 0;
+        while(b.bytes[offset] == 0x00) {
+            offset++;
+        }
+        if(offset >= sizeof(b.bytes)) {
+            return prefix + "0";
+        } else {
+            auto str = evmc::hex(
+                evmc::bytes(&b.bytes[offset], sizeof(b.bytes) - offset));
+            if(str.substr(0, 1) == "0") {
+                str = str.substr(1);
+            }
+            return prefix + str;
+        }
+    }
+
+    // Taken from: ethereum.github.io/execution-specs/autoapi/ethereum/
+    // frontier/bloom/index.html#logs-bloom
+    void add_to_bloom(cbdc::buffer& bloom, const cbdc::buffer& entry) {
+        auto hash = cbdc::make_buffer(keccak_data(entry.data(), entry.size()));
+
+        for(size_t i = 0; i <= 4; i += 2) {
+            auto uint16_buf = cbdc::buffer();
+            uint16_buf.extend(2);
+            std::memcpy(uint16_buf.data(), hash.data_at(i), 2);
+            uint16_t byte_pair
+                = cbdc::from_buffer<uint16_t>(uint16_buf).value();
+            static constexpr uint16_t bloom_bits = 0x07FF;
+            auto bit_to_set = byte_pair & bloom_bits;
+            auto bit_index = 0x07FF - bit_to_set;
+            auto byte_index = bit_index / 8;
+            uint8_t bit_value
+                = static_cast<uint8_t>(1 << (7 - (bit_index % 8)));
+            uint8_t bloom_byte{};
+            std::memcpy(&bloom_byte, bloom.data_at(byte_index), 1);
+            bloom_byte |= bit_value;
+            std::memcpy(bloom.data_at(byte_index), &bloom_byte, 1);
+        }
+    }
+
     auto parse_bytes32(const std::string& bytes)
         -> std::optional<evmc::bytes32> {
         static constexpr size_t bytes_size = 32;
